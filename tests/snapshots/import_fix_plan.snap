@@ -1,0 +1,22 @@
+task: import-fix-plan
+scope:
+  files scanned: changed
+findings:
+  broken candidates: 1
+  broken imports:
+    src/app/MainEditorWindow.tsx:2 ./SelectionPanel
+    target: missing
+    candidate: src/features/SelectionPanel.tsx
+  stale imports:
+    src/app/MainEditorWindow.tsx:1 ./workspacePanels
+  relative depth warnings:
+    flat: 2
+risk:
+  High: 1 broken imports
+  Medium: 1 stale file references
+verify:
+  npm run build
+next:
+  1. fix missing import targets
+  2. replace stale imports to deleted files
+  3. rerun build and fallout

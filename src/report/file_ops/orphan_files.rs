@@ -7,9 +7,21 @@ use crate::model::CodeMap;
 use crate::report::common::slash_path;
 
 use super::common::read_text_at_root;
-use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<()> {
+    let report = build_orphan_report(root, map, query, limit)?;
+    print!("{}", render_report(&report));
+    Ok(())
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn render_orphan_report(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<String> {
+    let report = build_orphan_report(root, map, query, limit)?;
+    Ok(render_report(&report))
+}
+
+fn build_orphan_report(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<FileOpReport> {
     let prefix = query.replace('\\', "/");
     let scope = vec![format!("scope: {query}")];
     let mut findings = Vec::new();
@@ -82,7 +94,7 @@ pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize)
         });
     }
 
-    super::model::print_report(&FileOpReport {
+    Ok(FileOpReport {
         task: format!("orphan-files {query}"),
         scope,
         findings,
@@ -96,8 +108,7 @@ pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize)
                 label: "delete orphan files only after verifying inbound refs".to_string(),
             },
         ],
-    });
-    Ok(())
+    })
 }
 
 fn inbound_counts(map: &CodeMap) -> BTreeMap<String, usize> {
@@ -196,7 +207,7 @@ mod tests {
 
     use crate::model::{CodeMap, DependencyEntry, FileEntry, GitInfo};
 
-    use super::{classify_shim, inbound_counts, is_entry_point, textual_path_refs};
+    use super::{classify_shim, inbound_counts, is_entry_point, render_orphan_report, textual_path_refs};
 
     #[test]
     fn ignores_entrypoints() {
@@ -293,6 +304,75 @@ mod tests {
             "AssetTreePanel",
         );
         assert_eq!(refs, 1);
+    }
+
+    #[test]
+    fn snapshot_orphan_report() {
+        let root = temp_root("orphan-snapshot");
+        std::fs::create_dir_all(root.join("src/features/assets")).expect("create dirs");
+        std::fs::write(
+            root.join("src/features/assets/AssetRegistryTree.tsx"),
+            "export { AssetBrowserPanel } from \"./AssetBrowserPanel\";\n",
+        )
+        .expect("write shim");
+        std::fs::write(
+            root.join("src/features/assets/AssetBrowserPanel.tsx"),
+            "import { AssetTreePanel } from \"./AssetTreePanel\";\n",
+        )
+        .expect("write browser");
+        std::fs::write(
+            root.join("src/features/assets/AssetTreePanel.tsx"),
+            "export const AssetTreePanel = () => null;\n",
+        )
+        .expect("write panel");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("src/features/assets/AssetRegistryTree.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("src/features/assets/AssetBrowserPanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f3".to_string(),
+                    path: PathBuf::from("src/features/assets/AssetTreePanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: false,
+                changed: Vec::new(),
+            },
+        };
+
+        assert_eq!(
+            render_orphan_report(root.as_path(), &map, "src/features", 10)
+                .expect("report should render")
+                .trim(),
+            include_str!("../../../tests/snapshots/orphan_files.snap").trim()
+        );
     }
 
     fn temp_root(name: &str) -> PathBuf {

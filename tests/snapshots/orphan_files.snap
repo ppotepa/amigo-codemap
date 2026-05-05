@@ -1,0 +1,21 @@
+task: orphan-files src/features
+scope:
+  scope: src/features
+findings:
+  candidates:
+    src/features/assets/AssetRegistryTree.tsx
+      lines: 1
+      inbound refs: 0
+      status: shim/empty
+  not orphan:
+    src/features/assets/AssetBrowserPanel.tsx
+      inbound refs: 1
+    src/features/assets/AssetTreePanel.tsx
+      inbound refs: 1
+risk:
+  Medium: some zero-inbound files may be compatibility shims
+verify:
+  npm run build
+next:
+  1. inspect shim/empty candidates first
+  2. delete orphan files only after verifying inbound refs

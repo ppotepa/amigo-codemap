@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use serde_yaml::Value;
 
 use super::common::slash_path;
 use super::model::{render_report, FileOpReport, NextAction};
@@ -30,13 +31,24 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
     for manifest in &manifest_files {
         let text = std::fs::read_to_string(manifest).unwrap_or_default();
         let relative_manifest = slash_path(manifest.strip_prefix(root).unwrap_or(manifest));
+        let parsed = parse_yaml_document(&text);
         let values = yaml_field_values(
             &text,
             &["path", "source", "image", "scene", "spritesheet", "font"],
         );
-        let ids_in_file = yaml_field_values(&text, &["id"])
-            .into_iter()
-            .collect::<BTreeSet<_>>();
+        let structured_values = parsed
+            .as_ref()
+            .map(|value| collect_yaml_field_values(value, &["path", "source", "image", "scene", "spritesheet", "font"]))
+            .unwrap_or_default();
+        let all_values = if structured_values.is_empty() {
+            values
+        } else {
+            structured_values
+        };
+        let ids_in_file = parsed
+            .as_ref()
+            .map(|value| collect_yaml_field_values(value, &["id"]).into_iter().collect::<BTreeSet<_>>())
+            .unwrap_or_else(|| yaml_field_values(&text, &["id"]).into_iter().collect::<BTreeSet<_>>());
 
         for id in ids_in_file {
             duplicate_ids
@@ -45,7 +57,7 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
                 .push(relative_manifest.clone());
         }
 
-        for value in &values {
+        for value in &all_values {
             let resolved = manifest
                 .parent()
                 .unwrap_or_else(|| Path::new(""))
@@ -56,9 +68,15 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
             }
         }
 
-        spritesheets += yaml_field_values(&text, &["spritesheet"]).len();
-        fonts += yaml_field_values(&text, &["font"]).len();
-        scenes += yaml_field_values(&text, &["scene"]).len();
+        if let Some(parsed) = parsed.as_ref() {
+            spritesheets += collect_yaml_field_values(parsed, &["spritesheet"]).len();
+            fonts += collect_yaml_field_values(parsed, &["font"]).len();
+            scenes += collect_yaml_field_values(parsed, &["scene"]).len();
+        } else {
+            spritesheets += yaml_field_values(&text, &["spritesheet"]).len();
+            fonts += yaml_field_values(&text, &["font"]).len();
+            scenes += yaml_field_values(&text, &["scene"]).len();
+        }
     }
 
     let raw_files = walk_raw_files(&module_root.join("raw"))?;
@@ -180,6 +198,61 @@ fn looks_like_asset_path(value: &str) -> bool {
         || value.ends_with(".yml")
 }
 
+fn parse_yaml_document(text: &str) -> Option<Value> {
+    serde_yaml::from_str::<Value>(text).ok()
+}
+
+fn collect_yaml_field_values(value: &Value, keys: &[&str]) -> Vec<String> {
+    let wanted = keys.iter().copied().collect::<BTreeSet<_>>();
+    let mut out = Vec::new();
+    collect_yaml_field_values_inner(value, &wanted, &mut out);
+    out
+}
+
+fn collect_yaml_field_values_inner(
+    value: &Value,
+    keys: &BTreeSet<&str>,
+    out: &mut Vec<String>,
+) {
+    match value {
+        Value::Mapping(map) => {
+            for (key, value) in map {
+                if let Value::String(name) = key {
+                    if keys.contains(name.as_str()) {
+                        collect_yaml_scalars(value, out);
+                    }
+                }
+                collect_yaml_field_values_inner(value, keys, out);
+            }
+        }
+        Value::Sequence(items) => {
+            for item in items {
+                collect_yaml_field_values_inner(item, keys, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_yaml_scalars(value: &Value, out: &mut Vec<String>) {
+    match value {
+        Value::String(text) => out.push(text.clone()),
+        Value::Number(number) => out.push(number.to_string()),
+        Value::Bool(flag) => out.push(flag.to_string()),
+        Value::Mapping(map) => {
+            for (_, value) in map {
+                collect_yaml_scalars(value, out);
+            }
+        }
+        Value::Sequence(items) => {
+            for item in items {
+                collect_yaml_scalars(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn yaml_field_values(text: &str, keys: &[&str]) -> Vec<String> {
     let mut values = Vec::new();
     for line in text.lines() {
@@ -202,7 +275,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{build_asset_file_report, yaml_field_values};
+    use super::{build_asset_file_report, collect_yaml_field_values, parse_yaml_document, yaml_field_values};
 
     #[test]
     fn collects_yaml_fields() {
@@ -241,6 +314,17 @@ mod tests {
         assert!(rendered.contains("hero"));
         assert!(rendered.contains("unused raw files:"));
         assert!(rendered.contains("mods/test-mod/raw/images/unused.png"));
+    }
+
+    #[test]
+    fn extracts_nested_yaml_fields_with_parser() {
+        let parsed = parse_yaml_document(
+            "scene:\n  id: demo-scene\n  files:\n    - raw/scenes/demo.scene.json\nfont:\n  - raw/fonts/main.ttf\n",
+        )
+        .expect("yaml should parse");
+        let values = collect_yaml_field_values(&parsed, &["scene", "font"]);
+        assert!(values.contains(&"demo-scene".to_string()) || values.contains(&"raw/scenes/demo.scene.json".to_string()));
+        assert!(values.contains(&"raw/fonts/main.ttf".to_string()));
     }
 
     fn temp_root(name: &str) -> PathBuf {

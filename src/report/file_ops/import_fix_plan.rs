@@ -23,6 +23,17 @@ pub fn print_import_fix_plan(
     Ok(())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn render_import_fix_report(
+    root: &Path,
+    map: &CodeMap,
+    changed_only: bool,
+    limit: usize,
+) -> Result<String> {
+    let report = build_import_fix_report(root, map, changed_only, limit)?;
+    Ok(render_report(&report))
+}
+
 fn build_import_fix_report(
     root: &Path,
     map: &CodeMap,
@@ -249,7 +260,7 @@ mod tests {
 
     use crate::model::{CodeMap, FileEntry, GitChange, GitInfo};
 
-    use super::{build_import_fix_report, is_deleted_relative_target};
+    use super::{build_import_fix_report, is_deleted_relative_target, render_import_fix_report};
 
     #[test]
     fn detects_deleted_relative_target() {
@@ -349,6 +360,74 @@ mod tests {
         assert!(rendered.contains("broken imports:"));
         assert!(rendered.contains("./SelectionPanel"));
         assert!(rendered.contains("candidate: src/features/SelectionPanel.tsx"));
+    }
+
+    #[test]
+    fn snapshot_import_fix_report() {
+        let root = temp_root("import-fix-snapshot");
+        std::fs::create_dir_all(root.join("src/app")).expect("create app dir");
+        std::fs::create_dir_all(root.join("src/features")).expect("create features dir");
+        std::fs::write(
+            root.join("src/app/MainEditorWindow.tsx"),
+            "import { Panels } from \"./workspacePanels\";\nimport { Next } from \"./SelectionPanel\";\n",
+        )
+        .expect("write source");
+        std::fs::write(
+            root.join("src/features/SelectionPanel.tsx"),
+            "export const SelectionPanel = () => null;\n",
+        )
+        .expect("write candidate");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("src/app/MainEditorWindow.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 2,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("src/features/SelectionPanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: true,
+                changed: vec![
+                    GitChange {
+                        status: "M".to_string(),
+                        path: PathBuf::from("src/app/MainEditorWindow.tsx"),
+                        file_id: Some("f1".to_string()),
+                    },
+                    GitChange {
+                        status: "D".to_string(),
+                        path: PathBuf::from("src/app/workspacePanels.tsx"),
+                        file_id: None,
+                    },
+                ],
+            },
+        };
+
+        assert_eq!(
+            render_import_fix_report(root.as_path(), &map, true, 20)
+                .expect("report should render")
+                .trim(),
+            include_str!("../../../tests/snapshots/import_fix_plan.snap").trim()
+        );
     }
 
     fn temp_root(name: &str) -> PathBuf {
