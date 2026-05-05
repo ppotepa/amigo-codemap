@@ -1,0 +1,23 @@
+task: asset-file-check mods/test-mod
+scope:
+  module: mods/test-mod
+findings:
+  spritesheets: 1
+  fonts: 1
+  scenes: 1
+  missing sources:
+    ../raw/images/missing.png
+    ../raw/scenes/start.scene.json
+  duplicate ids:
+    hero
+      mods/test-mod/defs/assets.yml
+      mods/test-mod/defs/duplicate.yml
+  unused raw files:
+    mods/test-mod/raw/images/unused.png
+risk:
+  none
+verify:
+  scene-preview smoke
+next:
+  1. inspect missing sources first
+  2. remove duplicate ids or unused raw files

@@ -13,6 +13,12 @@ pub fn print_asset_file_check(root: &Path, query: &str, limit: usize) -> Result<
     Ok(())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn render_asset_file_check(root: &Path, query: &str, limit: usize) -> Result<String> {
+    let report = build_asset_file_report(root, query, limit)?;
+    Ok(render_report(&report))
+}
+
 fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<FileOpReport> {
     let module_root = root.join(query);
     let mut spritesheets = 0usize;
@@ -62,16 +68,16 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
                 .parent()
                 .unwrap_or_else(|| Path::new(""))
                 .join(value);
-            referenced_raw.insert(slash_path(&resolved.strip_prefix(root).unwrap_or(&resolved)));
+            referenced_raw.insert(normalize_repo_relative(root, &resolved));
             if looks_like_asset_path(value) && !resolved.exists() {
                 missing_sources.insert(value.clone());
             }
         }
 
         if let Some(parsed) = parsed.as_ref() {
-            spritesheets += collect_yaml_field_values(parsed, &["spritesheet"]).len();
-            fonts += collect_yaml_field_values(parsed, &["font"]).len();
-            scenes += collect_yaml_field_values(parsed, &["scene"]).len();
+            spritesheets += count_yaml_field_occurrences(parsed, &["spritesheet"]);
+            fonts += count_yaml_field_occurrences(parsed, &["font"]);
+            scenes += count_yaml_field_occurrences(parsed, &["scene"]);
         } else {
             spritesheets += yaml_field_values(&text, &["spritesheet"]).len();
             fonts += yaml_field_values(&text, &["font"]).len();
@@ -83,7 +89,7 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
     let unused_raw = raw_files
         .into_iter()
         .filter_map(|path| {
-            let relative = slash_path(&path.strip_prefix(root).unwrap_or(&path));
+            let relative = normalize_repo_relative(root, &path);
             (!referenced_raw.contains(&relative)).then_some(relative)
         })
         .take(limit)
@@ -202,11 +208,60 @@ fn parse_yaml_document(text: &str) -> Option<Value> {
     serde_yaml::from_str::<Value>(text).ok()
 }
 
+fn normalize_repo_relative(root: &Path, path: &Path) -> String {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    normalize_path(relative)
+}
+
+fn normalize_path(path: &Path) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !parts.is_empty() {
+                    parts.pop();
+                }
+            }
+            std::path::Component::Normal(part) => {
+                parts.push(part.to_string_lossy().to_string());
+            }
+            std::path::Component::RootDir => {}
+            std::path::Component::Prefix(prefix) => {
+                parts.push(prefix.as_os_str().to_string_lossy().to_string());
+            }
+        }
+    }
+    parts.join("/")
+}
+
 fn collect_yaml_field_values(value: &Value, keys: &[&str]) -> Vec<String> {
     let wanted = keys.iter().copied().collect::<BTreeSet<_>>();
     let mut out = Vec::new();
     collect_yaml_field_values_inner(value, &wanted, &mut out);
     out
+}
+
+fn count_yaml_field_occurrences(value: &Value, keys: &[&str]) -> usize {
+    let wanted = keys.iter().copied().collect::<BTreeSet<_>>();
+    count_yaml_field_occurrences_inner(value, &wanted)
+}
+
+fn count_yaml_field_occurrences_inner(value: &Value, keys: &BTreeSet<&str>) -> usize {
+    match value {
+        Value::Mapping(map) => map
+            .iter()
+            .map(|(key, value)| {
+                let direct = matches!(key, Value::String(name) if keys.contains(name.as_str())) as usize;
+                direct + count_yaml_field_occurrences_inner(value, keys)
+            })
+            .sum(),
+        Value::Sequence(items) => items
+            .iter()
+            .map(|item| count_yaml_field_occurrences_inner(item, keys))
+            .sum(),
+        _ => 0,
+    }
 }
 
 fn collect_yaml_field_values_inner(
@@ -275,7 +330,10 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{build_asset_file_report, collect_yaml_field_values, parse_yaml_document, yaml_field_values};
+    use super::{
+        build_asset_file_report, collect_yaml_field_values, count_yaml_field_occurrences,
+        normalize_repo_relative, parse_yaml_document, render_asset_file_check, yaml_field_values,
+    };
 
     #[test]
     fn collects_yaml_fields() {
@@ -325,6 +383,55 @@ mod tests {
         let values = collect_yaml_field_values(&parsed, &["scene", "font"]);
         assert!(values.contains(&"demo-scene".to_string()) || values.contains(&"raw/scenes/demo.scene.json".to_string()));
         assert!(values.contains(&"raw/fonts/main.ttf".to_string()));
+    }
+
+    #[test]
+    fn counts_yaml_field_occurrences_by_key() {
+        let parsed = parse_yaml_document(
+            "scene:\n  id: demo-scene\n  files:\n    - raw/scenes/demo.scene.json\nfont:\n  - raw/fonts/main.ttf\n",
+        )
+        .expect("yaml should parse");
+        assert_eq!(count_yaml_field_occurrences(&parsed, &["scene"]), 1);
+        assert_eq!(count_yaml_field_occurrences(&parsed, &["font"]), 1);
+    }
+
+    #[test]
+    fn normalizes_repo_relative_paths() {
+        let root = PathBuf::from("repo");
+        let path = root.join("mods/test-mod/defs/../raw/images/hero.png");
+        assert_eq!(
+            normalize_repo_relative(&root, &path),
+            "mods/test-mod/raw/images/hero.png"
+        );
+    }
+
+    #[test]
+    fn snapshot_asset_file_check() {
+        let root = temp_root("asset-snapshot");
+        let module = root.join("mods/test-mod");
+        fs::create_dir_all(module.join("defs")).expect("create defs dir");
+        fs::create_dir_all(module.join("raw/images")).expect("create raw dir");
+        fs::create_dir_all(module.join("raw/fonts")).expect("create fonts dir");
+        fs::write(
+            module.join("defs/assets.yml"),
+            "id: hero\nspritesheet: ../raw/images/hero.png\nscene:\n  id: demo-scene\n  files:\n    - ../raw/scenes/start.scene.json\n",
+        )
+        .expect("write assets manifest");
+        fs::write(
+            module.join("defs/duplicate.yml"),
+            "id: hero\nfont: ../raw/fonts/main.ttf\nimage: ../raw/images/missing.png\n",
+        )
+        .expect("write duplicate manifest");
+        fs::write(module.join("raw/images/hero.png"), "png").expect("write hero image");
+        fs::write(module.join("raw/fonts/main.ttf"), "ttf").expect("write font");
+        fs::write(module.join("raw/images/unused.png"), "png").expect("write unused image");
+
+        assert_eq!(
+            render_asset_file_check(root.as_path(), "mods/test-mod", 20)
+                .expect("asset report should render")
+                .trim(),
+            include_str!("../../../tests/snapshots/asset_file_check.snap").trim()
+        );
     }
 
     fn temp_root(name: &str) -> PathBuf {
