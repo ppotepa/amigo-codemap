@@ -103,3 +103,15 @@ cargo run -p amigo-codemap -- commit-summary --changed
 | Which files are probably dead shims? | `orphan-files <dir>` | `shim-check --changed` |
 | Which big file should I split next? | `large-files --top 20 --with-split-hints` | `move-plan <file>` |
 | How should I split the work into commits? | `commit-files --changed` | `commit-summary --changed` |
+
+## Manual test scenarios
+
+Repository root also contains `codemap-tests/` with three multi-step scenarios:
+- `001-symbol-migration`
+- `002-file-ops-cleanup`
+- `003-large-file-split`
+
+Each scenario includes:
+- `task.md` with the command sequence,
+- `result.md` for token and workflow notes,
+- shared rollup in `codemap-tests/summary.md`.
