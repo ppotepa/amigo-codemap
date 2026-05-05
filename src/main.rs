@@ -32,16 +32,11 @@ fn main() -> Result<()> {
         | Command::FileMovePlan
         | Command::RenamePlan
         | Command::ImportFixPlan
-        | Command::OpenSet
-        | Command::Workset
         | Command::BarrelCheck
-        | Command::OrphanFiles
         | Command::ShimCheck
-        | Command::LargeFiles
         | Command::AssetFileCheck
         | Command::CaseCheck
         | Command::TextCheck
-        | Command::PatchPreview
         | Command::CommitFiles => {
             cli.options.level = 0;
             cli.options.ai = false;
@@ -50,6 +45,17 @@ fn main() -> Result<()> {
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
+        }
+        Command::OpenSet | Command::LargeFiles | Command::PatchPreview
+            if cli.options.level < 2 =>
+        {
+            cli.options.level = 2;
+        }
+        Command::Workset if (cli.options.from_impact.is_some() || cli.options.status) && cli.options.level < 2 => {
+            cli.options.level = 2;
+        }
+        Command::OrphanFiles if cli.options.level < 3 => {
+            cli.options.level = 3;
         }
         _ => {}
     }
@@ -341,6 +347,7 @@ fn main() -> Result<()> {
                 &map,
                 name,
                 cli.options.task.as_deref(),
+                cli.options.from_impact.as_deref(),
                 cli.options.save,
                 cli.options.status,
             )?;
@@ -384,7 +391,11 @@ fn main() -> Result<()> {
         }
         Command::LargeFiles => {
             let map = scan::scan_project(&cli.options)?;
-            report::file_ops::large_files::print_large_files(&map, cli.options.top.max(1));
+            report::file_ops::large_files::print_large_files(
+                &map,
+                cli.options.top.max(1),
+                cli.options.with_split_hints,
+            );
         }
         Command::AssetFileCheck => {
             let query = cli
@@ -417,7 +428,10 @@ fn main() -> Result<()> {
             );
         }
         Command::PatchPreview => {
+            let map = scan::scan_project(&cli.options)?;
             report::file_ops::patch_preview::print_patch_preview(
+                &cli.options.root,
+                &map,
                 cli.options.from.as_deref(),
                 cli.options.limit,
             )?;

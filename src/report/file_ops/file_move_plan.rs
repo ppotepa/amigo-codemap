@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::model::CodeMap;
@@ -31,44 +30,29 @@ pub fn print_file_move_plan(
         .map_or_else(|_| out_to.clone(), Path::to_path_buf);
     let to_display = slash_path(&to_relative);
 
-    let mut imports = parse_imports(&from.path, &text);
-    let scope = vec![
-        format!("from: {}", slash_path(&from.path)),
-        format!("to: {to_display}"),
-        format!("lines: {}", from.lines),
-    ];
-
+    let imports = parse_imports(&from.path, &text);
     let mut findings = Vec::new();
     findings.push("imports to rewrite:".to_string());
-    for import in imports.iter_mut().take(limit) {
-        if import.specifier.starts_with(".") {
-            import.resolved = resolve_relative_import(root, &from.path, &import.specifier);
-            findings.push(format!(
-                "  {} -> {}",
-                import.specifier,
-                if let Some(resolved) = &import.resolved {
-                    format!("{} (exists)", slash_path(resolved))
-                } else {
-                    "missing".to_string()
-                }
-            ));
+    let mut rewrite_count = 0usize;
+
+    for import in imports.iter().filter(|item| item.specifier.starts_with('.')) {
+        if rewrite_count >= limit {
+            break;
+        }
+        if let Some(resolved) = resolve_relative_import(root, &from.path, &import.specifier) {
+            let resolved_abs = root.join(&resolved);
+            if let Some(new_specifier) =
+                relative_module_from_paths(root, &to_relative, &resolved_abs)
+            {
+                findings.push(format!("  {} -> {}", import.specifier, new_specifier));
+                rewrite_count += 1;
+            }
         }
     }
 
-    let mut rewrite_targets = BTreeSet::new();
-    if let (Some(spec), Some(to_rel)) = (
-        relative_module_from_paths(root, &from.path, &to_relative),
-        relative_module_from_paths(root, &from.path, &out_to),
-    ) {
-        rewrite_targets.insert((spec, to_rel));
-    }
-
-    for (old, new) in rewrite_targets {
-        findings.push(format!("  {old} -> {new}"));
-    }
-
-    findings.push("inbound imports:".to_string());
-    for other in map.files.iter() {
+    findings.push("inbound imports to update:".to_string());
+    let mut inbound_count = 0usize;
+    for other in &map.files {
         if other.id == from.id {
             continue;
         }
@@ -78,27 +62,52 @@ pub fn print_file_move_plan(
                 continue;
             }
             if let Some(resolved) = resolve_relative_import(root, &other.path, &import.specifier) {
-                if resolved == from.path {
-                    findings.push(format!("  {}:{}", slash_path(&other.path), import.line));
+                if resolved == from.path && inbound_count < limit {
+                    let new_specifier = relative_module_from_paths(root, &other.path, &out_to)
+                        .unwrap_or_else(|| import.specifier.clone());
+                    findings.push(format!(
+                        "  {}:{} {} -> {}",
+                        slash_path(&other.path),
+                        import.line,
+                        import.specifier,
+                        new_specifier
+                    ));
+                    inbound_count += 1;
                 }
             }
         }
     }
 
-    let risks = vec![
-        Risk {
+    let mut risks = vec![Risk {
+        level: RiskLevel::Medium,
+        message: "relative path depth may change imports".to_string(),
+    }];
+    if slash_path(&from.path).contains("/features/") || to_display.contains("/features/") {
+        risks.push(Risk {
             level: RiskLevel::Medium,
-            message: "relative path depth may change imports".to_string(),
-        },
-        Risk {
+            message: "feature boundary imports should be verified".to_string(),
+        });
+    }
+    if findings.iter().any(|line| line.matches("../").count() >= 3) {
+        risks.push(Risk {
             level: RiskLevel::Medium,
-            message: "public boundary imports should be verified".to_string(),
-        },
-    ];
+            message: "deep relative imports increase rewrite risk".to_string(),
+        });
+    }
+    if inbound_count > 0 {
+        risks.push(Risk {
+            level: RiskLevel::Low,
+            message: "inbound imports need synchronized updates".to_string(),
+        });
+    }
 
     super::model::print_report(&FileOpReport {
         task: format!("file-move-plan {}", query),
-        scope,
+        scope: vec![
+            format!("from: {}", slash_path(&from.path)),
+            format!("to: {to_display}"),
+            format!("lines: {}", from.lines),
+        ],
         findings,
         risks,
         verify: vec!["npm run build".to_string()],
@@ -107,7 +116,7 @@ pub fn print_file_move_plan(
                 label: "move file".to_string(),
             },
             NextAction {
-                label: "update inbound imports".to_string(),
+                label: "update rewritten and inbound imports".to_string(),
             },
             NextAction {
                 label: "run verify-plan".to_string(),

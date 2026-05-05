@@ -1,77 +1,119 @@
-use std::collections::BTreeSet;
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use super::common::{read_text_at_root, slash_path};
+use super::common::slash_path;
 use super::model::{FileOpReport, NextAction};
 
-pub fn print_asset_file_check(root: &Path, query: &str, _limit: usize) -> Result<()> {
-    let mut assets = 0usize;
+pub fn print_asset_file_check(root: &Path, query: &str, limit: usize) -> Result<()> {
+    let module_root = root.join(query);
+    let mut spritesheets = 0usize;
     let mut fonts = 0usize;
     let mut scenes = 0usize;
-    let mut missing: BTreeSet<String> = BTreeSet::new();
-    let mut duplicates = BTreeSet::new();
-    let mut unused: Vec<String> = Vec::new();
+    let mut missing_sources = BTreeSet::new();
+    let mut duplicate_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut referenced_raw = BTreeSet::new();
 
-    let query_lc = query.to_ascii_lowercase();
-    let query_path = root.join("crates");
-    if query_path.exists() {
-        let entries = walk_files(&query_path)?;
-        for path in entries {
-            let path_text = slash_path(&path.strip_prefix(root).unwrap_or(&path).to_path_buf());
-            if path_text.contains(&query_lc) {
-                let Ok(text) = read_text_at_root(root, &path) else {
-                    continue;
-                };
-                for value in yaml_values(&text, &["spritesheets", "fonts", "scenes"]) {
-                    if value.ends_with(".png") || value.ends_with(".json") {
-                        if !path_text.contains("assets") {
-                            missing.insert(value);
-                        }
-                    }
-                }
-                assets += text.matches("spritesheet").count();
-                fonts += text.matches("font").count();
-                scenes += text.matches("scene").count();
+    let manifest_files = if module_root.exists() {
+        walk_asset_files(&module_root)?
+    } else {
+        Vec::new()
+    };
+
+    for manifest in &manifest_files {
+        let text = std::fs::read_to_string(manifest).unwrap_or_default();
+        let relative_manifest = slash_path(manifest.strip_prefix(root).unwrap_or(manifest));
+
+        for id in yaml_field_values(&text, &["id"]) {
+            duplicate_ids
+                .entry(id)
+                .or_default()
+                .push(relative_manifest.clone());
+        }
+
+        for value in yaml_field_values(
+            &text,
+            &["path", "source", "image", "scene", "spritesheet", "font"],
+        ) {
+            let resolved = manifest
+                .parent()
+                .unwrap_or_else(|| Path::new(""))
+                .join(&value);
+            referenced_raw.insert(slash_path(&resolved.strip_prefix(root).unwrap_or(&resolved)));
+            if looks_like_asset_path(&value) && !resolved.exists() {
+                missing_sources.insert(value);
+            }
+        }
+
+        spritesheets += text.matches("spritesheet").count();
+        fonts += text.matches("font").count();
+        scenes += text.matches("scene").count();
+    }
+
+    let raw_files = walk_raw_files(&module_root.join("raw"))?;
+    let unused_raw = raw_files
+        .into_iter()
+        .filter_map(|path| {
+            let relative = slash_path(&path.strip_prefix(root).unwrap_or(&path));
+            (!referenced_raw.contains(&relative)).then_some(relative)
+        })
+        .take(limit)
+        .collect::<Vec<_>>();
+
+    let duplicate_values = duplicate_ids
+        .into_iter()
+        .filter_map(|(id, files)| (files.len() > 1).then_some((id, files)))
+        .collect::<Vec<_>>();
+
+    let mut findings = vec![
+        format!("spritesheets: {spritesheets}"),
+        format!("fonts: {fonts}"),
+        format!("scenes: {scenes}"),
+        "missing sources:".to_string(),
+    ];
+
+    if missing_sources.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for value in missing_sources.iter().take(limit) {
+            findings.push(format!("  {value}"));
+        }
+    }
+
+    findings.push("duplicate ids:".to_string());
+    if duplicate_values.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for (id, files) in duplicate_values.into_iter().take(limit) {
+            findings.push(format!("  {id}"));
+            for file in files {
+                findings.push(format!("    {file}"));
             }
         }
     }
 
-    if !duplicates.insert(query.to_string()) {
-        unused.push("duplicate source id".to_string());
-    }
-
-    let mut findings = vec![
-        format!("assets: {assets}"),
-        format!("fonts: {fonts}"),
-        format!("scenes: {scenes}"),
-        format!("missing sources: {}", missing.len()),
-        format!(
-            "duplicate ids: {}",
-            if duplicates.is_empty() { 0 } else { 1 }
-        ),
-    ];
-
-    if !unused.is_empty() {
-        findings.push("unused raw files:".to_string());
-        for item in unused {
+    findings.push("unused raw files:".to_string());
+    if unused_raw.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for item in unused_raw {
             findings.push(format!("  {item}"));
         }
     }
 
     super::model::print_report(&FileOpReport {
         task: format!("asset-file-check {query}"),
-        scope: vec![format!("query: {query}")],
+        scope: vec![format!("module: {query}")],
         findings,
         risks: Vec::new(),
         verify: vec!["scene-preview smoke".to_string()],
         next: vec![
             NextAction {
-                label: "inspect missing/unused assets".to_string(),
+                label: "inspect missing sources first".to_string(),
             },
             NextAction {
-                label: "run focused scene runtime checks".to_string(),
+                label: "remove duplicate ids or unused raw files".to_string(),
             },
         ],
     });
@@ -79,32 +121,61 @@ pub fn print_asset_file_check(root: &Path, query: &str, _limit: usize) -> Result
     Ok(())
 }
 
-fn walk_files(path: &std::path::Path) -> Result<Vec<std::path::PathBuf>> {
+fn walk_asset_files(path: &Path) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
+    if !path.exists() {
+        return Ok(files);
+    }
+
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let child = entry.path();
         if child.is_dir() {
-            files.extend(walk_files(&child)?);
-        } else {
-            let is_asset = child
-                .extension()
-                .is_some_and(|ext| ext == "yml" || ext == "yaml" || ext == "json");
-            if is_asset {
-                files.push(child);
-            }
+            files.extend(walk_asset_files(&child)?);
+        } else if child
+            .extension()
+            .is_some_and(|ext| ext == "yml" || ext == "yaml" || ext == "json")
+        {
+            files.push(child);
         }
     }
     Ok(files)
 }
 
-fn yaml_values(text: &str, keys: &[&str]) -> Vec<String> {
+fn walk_raw_files(path: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    if !path.exists() {
+        return Ok(files);
+    }
+
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let child = entry.path();
+        if child.is_dir() {
+            files.extend(walk_raw_files(&child)?);
+        } else {
+            files.push(child);
+        }
+    }
+    Ok(files)
+}
+
+fn looks_like_asset_path(value: &str) -> bool {
+    value.contains('/')
+        || value.ends_with(".png")
+        || value.ends_with(".jpg")
+        || value.ends_with(".json")
+        || value.ends_with(".yaml")
+        || value.ends_with(".yml")
+}
+
+fn yaml_field_values(text: &str, keys: &[&str]) -> Vec<String> {
     let mut values = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim();
         for key in keys {
-            let needle = format!("{key}:");
-            if let Some(rest) = trimmed.strip_prefix(&needle) {
+            let prefix = format!("{key}:");
+            if let Some(rest) = trimmed.strip_prefix(&prefix) {
                 let value = rest.trim().trim_matches('"').trim_matches('\'');
                 if !value.is_empty() {
                     values.push(value.to_string());
@@ -113,4 +184,15 @@ fn yaml_values(text: &str, keys: &[&str]) -> Vec<String> {
         }
     }
     values
+}
+
+#[cfg(test)]
+mod tests {
+    use super::yaml_field_values;
+
+    #[test]
+    fn collects_yaml_fields() {
+        let values = yaml_field_values("id: hero\nscene: scenes/start.scene.json\n", &["id", "scene"]);
+        assert_eq!(values, vec!["hero".to_string(), "scenes/start.scene.json".to_string()]);
+    }
 }

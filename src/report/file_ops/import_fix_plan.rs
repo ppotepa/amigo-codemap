@@ -6,11 +6,11 @@ use anyhow::Result;
 use crate::model::CodeMap;
 
 use super::common::{
-    changed_by_path, changed_status, changed_status_by_path, read_text_at_root, resolve_relative_import,
-    slash_path,
+    changed_by_path, changed_status, changed_status_by_path, read_text_at_root,
+    resolve_relative_import, slash_path,
 };
 use super::imports::parse_ts_imports;
-use super::model::{FileOpReport, NextAction};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_import_fix_plan(
     root: &Path,
@@ -20,17 +20,15 @@ pub fn print_import_fix_plan(
 ) -> Result<()> {
     let changed_ids = changed_by_path(map);
     let changed_statuses = changed_status_by_path(map);
-    let mut broken = 0usize;
-    let mut stale = 0usize;
-    let mut findings = Vec::new();
+    let mut broken = Vec::new();
+    let mut stale = Vec::new();
+    let mut depth_map = BTreeMap::<String, usize>::new();
 
     for file in &map.files {
         if changed_only && !changed_ids.contains(&slash_path(&file.path)) {
             continue;
         }
-        if !super::super::common::is_ts_source(&file.path)
-            && !super::super::common::is_rust_source(&file.path)
-        {
+        if !super::super::common::is_ts_source(&file.path) {
             continue;
         }
 
@@ -40,92 +38,90 @@ pub fn print_import_fix_plan(
                 continue;
             }
 
+            let depth = import.specifier.matches("../").count();
+            *depth_map
+                .entry(if depth >= 2 { "deep".to_string() } else { "flat".to_string() })
+                .or_default() += 1;
+
             if let Some(resolved) = resolve_relative_import(root, &file.path, &import.specifier) {
-                match changed_status(&changed_statuses, &resolved) {
-                    Some("D") => {
-                        findings.push(format!(
-                            "stale import: {} in {}:{}",
-                            import.specifier,
-                            slash_path(&file.path),
-                            import.line
-                        ));
-                        stale += 1;
-                    }
-                    Some(_) => {
-                        findings.push(format!(
-                            "target changed: {} in {}:{}",
-                            import.specifier,
-                            slash_path(&file.path),
-                            import.line
-                        ));
-                    }
-                    None => {}
+                if matches!(changed_status(&changed_statuses, &resolved), Some("D")) {
+                    stale.push(format!(
+                        "{}:{} {}",
+                        slash_path(&file.path),
+                        import.line,
+                        import.specifier
+                    ));
                 }
-            } else if is_deleted_relative_target(&changed_statuses, root, &file.path, &import.specifier)
-            {
-                findings.push(format!(
-                    "stale import: {} in {}:{}",
-                    import.specifier,
+            } else if is_deleted_relative_target(&changed_statuses, root, &file.path, &import.specifier) {
+                stale.push(format!(
+                    "{}:{} {}",
                     slash_path(&file.path),
-                    import.line
+                    import.line,
+                    import.specifier
                 ));
-                stale += 1;
             } else {
-                findings.push(format!(
-                    "missing import {} in {}:{}",
-                    import.specifier,
+                let candidate = guess_candidate(map, &import.specifier);
+                broken.push(format!(
+                    "{}:{} {}\n    target: missing{}",
                     slash_path(&file.path),
-                    import.line
+                    import.line,
+                    import.specifier,
+                    candidate
+                        .map(|value| format!("\n    candidate: {value}"))
+                        .unwrap_or_default()
                 ));
-                broken += 1;
             }
         }
     }
 
-    let mut depth_map = BTreeMap::<String, usize>::new();
-    for file in &map.files {
-        let depth = file.path.components().count();
-        let bucket = if depth > 8 {
-            "deep".to_string()
-        } else {
-            "flat".to_string()
-        };
-        *depth_map.entry(bucket).or_default() += 1;
-    }
-
-    let scope = vec![format!(
-        "files scanned: {}",
-        if changed_only { "changed" } else { "all" }
-    )];
-
-    let mut sorted: Vec<String> = findings.into_iter().take(limit).collect();
-    let mut lines = Vec::new();
-    lines.push("broken imports:".to_string());
-    if sorted.is_empty() {
-        lines.push("  none".to_string());
+    let mut findings = vec![
+        format!("broken candidates: {}", broken.len()),
+        "broken imports:".to_string(),
+    ];
+    if broken.is_empty() {
+        findings.push("  none".to_string());
     } else {
-        lines.extend(sorted.drain(..).map(|item| format!("  {item}")));
+        for item in broken.iter().take(limit) {
+            findings.push(format!("  {item}"));
+        }
     }
-    lines.push("relative depth warnings:".to_string());
-    for (bucket, count) in depth_map {
-        lines.push(format!("  {bucket}: {count}"));
+
+    findings.push("stale imports:".to_string());
+    if stale.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for item in stale.iter().take(limit) {
+            findings.push(format!("  {item}"));
+        }
+    }
+
+    findings.push("relative depth warnings:".to_string());
+    if depth_map.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for (bucket, count) in depth_map {
+            findings.push(format!("  {bucket}: {count}"));
+        }
     }
 
     let risks = vec![
-        super::model::Risk {
-            level: super::model::RiskLevel::High,
-            message: format!("{broken} broken imports"),
+        Risk {
+            level: RiskLevel::High,
+            message: format!("{} broken imports", broken.len()),
         },
-        super::model::Risk {
-            level: super::model::RiskLevel::Medium,
-            message: format!("{stale} stale file references"),
+        Risk {
+            level: RiskLevel::Medium,
+            message: format!("{} stale file references", stale.len()),
         },
     ];
 
     super::model::print_report(&FileOpReport {
         task: "import-fix-plan".to_string(),
-        scope,
-        findings: lines,
+        scope: vec![format!(
+            "files scanned: {}",
+            if changed_only { "changed" } else { "all" }
+        )],
+        findings,
         risks,
         verify: vec!["npm run build".to_string()],
         next: vec![
@@ -133,15 +129,28 @@ pub fn print_import_fix_plan(
                 label: "fix missing import targets".to_string(),
             },
             NextAction {
-                label: "rerun changed build and fallout".to_string(),
+                label: "replace stale imports to deleted files".to_string(),
             },
             NextAction {
-                label: "run verify-plan".to_string(),
+                label: "rerun build and fallout".to_string(),
             },
         ],
     });
 
     Ok(())
+}
+
+fn guess_candidate(map: &CodeMap, specifier: &str) -> Option<String> {
+    let needle = specifier
+        .trim_start_matches("./")
+        .trim_start_matches("../")
+        .rsplit('/')
+        .next()?;
+
+    map.files.iter().find_map(|file| {
+        let path = slash_path(&file.path);
+        (path.contains(needle) && (path.ends_with(".ts") || path.ends_with(".tsx"))).then_some(path)
+    })
 }
 
 fn is_deleted_relative_target(
@@ -168,7 +177,9 @@ fn is_deleted_relative_target(
         base.join("index.tsx"),
     ];
 
-    candidates.into_iter().any(|candidate| is_deleted_candidate(&candidate, root, changed_statuses))
+    candidates
+        .into_iter()
+        .any(|candidate| is_deleted_candidate(&candidate, root, changed_statuses))
 }
 
 fn is_deleted_candidate(
@@ -179,7 +190,7 @@ fn is_deleted_candidate(
     let normalized = normalize_path(candidate);
     let normalized_without_root = candidate
         .strip_prefix(root)
-        .map_or_else(|_| normalized.clone(), |path| normalize_path(path));
+        .map_or_else(|_| normalized.clone(), normalize_path);
 
     for (path, status) in changed_statuses {
         if status != "D" {

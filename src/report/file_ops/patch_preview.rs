@@ -1,12 +1,22 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read};
 use std::path::Path;
 
 use anyhow::Result;
 
+use crate::model::CodeMap;
+use crate::report::common::{feature_group, slash_path};
+use crate::report::verify_plan::plan_for_paths;
+
 use super::diff::parse_patch_files;
 use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
 
-pub fn print_patch_preview(from: Option<&Path>, limit: usize) -> Result<()> {
+pub fn print_patch_preview(
+    root: &Path,
+    map: &CodeMap,
+    from: Option<&Path>,
+    limit: usize,
+) -> Result<()> {
     let text = if let Some(path) = from {
         std::fs::read_to_string(path)?
     } else {
@@ -15,55 +25,90 @@ pub fn print_patch_preview(from: Option<&Path>, limit: usize) -> Result<()> {
         text
     };
 
-    let scope = vec![format!(
-        "files: {}",
-        if from.is_some() { "from file" } else { "stdin" }
-    )];
     let files = parse_patch_files(&text);
+    let touched = files
+        .iter()
+        .map(|file| std::path::PathBuf::from(&file.new_path))
+        .collect::<Vec<_>>();
+    let plan = plan_for_paths(touched.clone());
 
-    let mut findings = Vec::new();
-    findings.push("areas:".to_string());
+    let mut area_counts = BTreeMap::<String, usize>::new();
+    let mut symbols = BTreeSet::<String>::new();
 
     for file in files.iter().take(limit) {
-        findings.push(format!("  {} -> {}", file.old_path, file.new_path));
-        findings.push(format!("    added hunks: {}", file.added_lines.len()));
+        *area_counts
+            .entry(feature_group(&file.new_path))
+            .or_default() += 1;
+
+        if let Some(entry) = map
+            .files
+            .iter()
+            .find(|candidate| slash_path(&candidate.path) == file.new_path)
+        {
+            for symbol in map.symbols.iter().filter(|symbol| symbol.file_id == entry.id) {
+                if file.added_lines.iter().any(|line| *line >= symbol.line) {
+                    symbols.insert(symbol.name.clone());
+                }
+            }
+        }
     }
 
-    if files.is_empty() {
-        findings.push("  no patch hunks found".to_string());
+    let mut findings = vec![format!("files touched: {}", files.len()), "areas:".to_string()];
+    if area_counts.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for (area, count) in area_counts {
+            findings.push(format!("  {area}: {count} files"));
+        }
+    }
+
+    findings.push("symbols likely touched:".to_string());
+    if symbols.is_empty() {
+        findings.push("  none".to_string());
+    } else {
+        for symbol in symbols.into_iter().take(limit) {
+            findings.push(format!("  {symbol}"));
+        }
     }
 
     let mut risks = Vec::new();
-    if files.iter().any(|file| file.added_lines.len() > 20) {
+    if files.iter().any(|file| file.new_path.contains("/app/store/")) {
         risks.push(Risk {
-            level: RiskLevel::Medium,
-            message: "some files have large added blocks".to_string(),
+            level: RiskLevel::High,
+            message: "reducer/action compatibility".to_string(),
         });
     }
-
-    if !findings.is_empty() && findings.len() > 1 {
+    if files
+        .iter()
+        .any(|file| file.new_path.contains("/properties/") || file.new_path.contains("registry"))
+    {
         risks.push(Risk {
-            level: RiskLevel::Low,
-            message: "review symbols in large files before apply".to_string(),
+            level: RiskLevel::Medium,
+            message: "properties or registry behavior".to_string(),
+        });
+    }
+    if files.iter().any(|file| file.new_path.contains("/src-tauri/src/commands/")) {
+        risks.push(Risk {
+            level: RiskLevel::Medium,
+            message: "Tauri command registration/import risk".to_string(),
         });
     }
 
     super::model::print_report(&FileOpReport {
         task: "patch-preview".to_string(),
-        scope,
+        scope: vec![format!(
+            "files: {}",
+            if from.is_some() { "from file" } else { "stdin" }
+        )],
         findings,
         risks,
-        verify: vec![
-            "npm test".to_string(),
-            "npm run build".to_string(),
-            "cargo test -p amigo-editor --lib".to_string(),
-        ],
+        verify: plan.required.into_iter().collect(),
         next: vec![
             NextAction {
-                label: "inspect risky files first".to_string(),
+                label: "inspect highest-risk area first".to_string(),
             },
             NextAction {
-                label: "apply patch for low-risk files first".to_string(),
+                label: "apply patch".to_string(),
             },
             NextAction {
                 label: "run fallout on build output".to_string(),
@@ -71,5 +116,6 @@ pub fn print_patch_preview(from: Option<&Path>, limit: usize) -> Result<()> {
         ],
     });
 
+    let _ = root;
     Ok(())
 }

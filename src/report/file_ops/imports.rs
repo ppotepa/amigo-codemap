@@ -5,8 +5,8 @@ use regex::Regex;
 use super::model::{ImportEntry, ImportKind};
 
 pub fn parse_ts_imports(file: &Path, text: &str) -> Vec<ImportEntry> {
-    let re = Regex::new(r#"(?:import|export)\s+.*?\s+from\s+["']([^"']+)["']"#).unwrap();
-    let side_effect_re = Regex::new(r#"import\s+["']([^"']+)["']"#).unwrap();
+    let re = Regex::new(r#"^\s*(?:import|export)\s+.*?\s+from\s+["']([^"']+)["']"#).unwrap();
+    let side_effect_re = Regex::new(r#"^\s*import\s+["']([^"']+)["']"#).unwrap();
 
     parse_named_imports(file, text, &re, &side_effect_re, ImportKind::TypeScript)
 }
