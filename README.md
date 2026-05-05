@@ -96,6 +96,73 @@ cargo run -p amigo-codemap -- commit-files --changed
 cargo run -p amigo-codemap -- commit-summary --changed
 ```
 
+## How to use `command-map`, `append-plan`, and `copy-plan`
+
+### `command-map`
+
+Use `command-map <name>` when you are extending `amigo-codemap` itself and do not want to fall back to manual repo search.
+
+```powershell
+cargo run -p amigo-codemap -- command-map copy-plan
+```
+
+Read the output in this order:
+- `cli` - where the command is parsed.
+- `dispatch` - where `main.rs` routes it.
+- `implementation` - the actual report file.
+- `docs` - README/workflow entries to update.
+- `tests` - the narrowest tests to extend or run.
+
+Default workflow:
+1. run `command-map <name>`
+2. read `cli`, then `dispatch`, then `implementation`
+3. edit code
+4. update docs from the `docs` list
+5. run the targeted tests from the `tests` list
+
+### `append-plan`
+
+Use `append-plan <file> --task ...` when the target file already exists and you want to add a new block, registry entry, route, style rule, or test case.
+
+```powershell
+cargo run -p amigo-codemap -- append-plan crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx --task component-definition --limit 12
+```
+
+How to read it:
+- `append anchors` - preferred insert points; use the first structural anchor instead of blind EOF append.
+- `symbol context` - nearby top-level declarations in the file.
+- `donor candidates` - similar files to borrow a small pattern from.
+- `companion files` - likely follow-up files for imports, registration, or styles.
+
+Default workflow:
+1. run `append-plan`
+2. pick the first structural anchor
+3. read one donor candidate only if the change is mechanical
+4. check companion files before saving
+5. run the suggested verify commands
+
+### `copy-plan`
+
+Use `copy-plan <target> [--from donor] [--task ...]` when you want to create a new file from an existing pattern or transplant a larger block from a known donor file.
+
+```powershell
+cargo run -p amigo-codemap -- copy-plan crates/apps/amigo-editor/src/startup/NewPanel.tsx --from crates/apps/amigo-editor/src/startup/ModsPanel.tsx --task panel --limit 12
+```
+
+How to read it:
+- `selected donor` - the file to copy from; if you do not pass `--from`, the report ranks one for you.
+- `alternate donors` - backup options; usually you should not read more than the top 1-2.
+- `rename hotspots` - names, symbols, and relative imports to fix first.
+- `mirrored companion files` - CSS/tests/helpers that may need a sibling copy.
+- `target anchors` - where to insert the copied block if the target file already exists.
+
+Default workflow:
+1. run `copy-plan`
+2. accept the top donor unless you have a clear reason not to
+3. rename hotspots before cleaning imports and props
+4. if the target already exists, run `append-plan <target>` before inserting the copied block
+5. add mirrored companion files only if the donor really depends on them
+
 ## Problem to command
 
 | Problem | First command | Follow-up |
