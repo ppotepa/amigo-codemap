@@ -26,6 +26,7 @@ Workspace code map generator for LLM-assisted development.
 - `scope <query>` - small context for a file, area, package, or symbol.
 - `refs <query>` - definitions plus text references, including CSS selectors at level 2.
 - `docs` - README coverage for workspace packages.
+- `command-map <name>` - points to CLI, dispatch, implementation, docs, and tests for one codemap command.
 - `verify <profile>` - capped command output for `npm-build`, `npm-test`, `cargo-check`, or `cargo-test`.
 
 ## Refactor reports
@@ -43,6 +44,7 @@ These commands provide compact operational context for LLM-assisted refactors.
 - `registry-check [kind]` - checks known editor registries.
 - `operations-summary` - summarizes costly tasks from `operations.md`.
 - `commit-summary --changed` - creates a compact change summary.
+- `append-plan <file> [--task name]` - suggests append anchors, donor files, and companion files for additive edits.
 - `slice <file> --symbol <name> [--radius N]` - compact file fragment around one symbol.
 - `diff-scope` - changed files summary by symbols and import-level risk.
 - `delete-plan <file> [--changed]` - checks whether file can be removed safely.
@@ -69,6 +71,7 @@ cargo run -p amigo-codemap -- find "AssetTreePanel" --limit 20
 cargo run -p amigo-codemap -- scope AssetTreePanel --limit 30
 cargo run -p amigo-codemap -- refs asset-tree-section --limit 20
 cargo run -p amigo-codemap -- docs
+cargo run -p amigo-codemap -- command-map append-plan
 cargo run -p amigo-codemap -- verify-plan --changed
 cargo run -p amigo-codemap -- impact EditorSelectionRef --group feature --limit 80
 cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection
@@ -77,6 +80,7 @@ npm run build 2>&1 | cargo run -p amigo-codemap -- fallout --limit 80
 cargo run -p amigo-codemap -- tauri-commands
 cargo run -p amigo-codemap -- diff-scope --changed --limit 80
 cargo run -p amigo-codemap -- open-set EditorSelectionRef --task migrate --limit 12
+cargo run -p amigo-codemap -- append-plan crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx --task component-definition --limit 12
 cargo run -p amigo-codemap -- file-move-plan crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx --to crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx
 cargo run -p amigo-codemap -- workset selection-migration --from-impact EditorSelectionRef --save
 cargo run -p amigo-codemap -- workset selection-migration --status
@@ -95,7 +99,9 @@ cargo run -p amigo-codemap -- commit-summary --changed
 | --- | --- | --- |
 | What changed? | `changed --group package` | `diff-scope --changed` |
 | What should I verify? | `verify-plan --changed` | `fallout --from ...` |
+| Where is this codemap command wired? | `command-map <name>` | `scope` on the reported files |
 | What files should I read first? | `open-set <symbol> --task migrate` | `slice <file> --symbol <name>` |
+| Where should I append a new block or registry entry? | `append-plan <file> --task ...` | `open-set <symbol>` |
 | What does a symbol change affect? | `impact <symbol> --group feature` | `workset <name> --from-impact <symbol> --save` |
 | Can I delete this file? | `delete-plan <file>` | `stale --patterns ...` |
 | What breaks if I move this file? | `file-move-plan <from> --to <to>` | `import-fix-plan --changed` |

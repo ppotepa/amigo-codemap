@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 
+pub mod command_map;
 pub mod common;
 pub mod dup;
 pub mod fallout;

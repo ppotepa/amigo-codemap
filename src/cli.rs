@@ -42,6 +42,7 @@ pub enum Command {
     Scope,
     Refs,
     Docs,
+    CommandMap,
     Verify,
     VerifyPlan,
     Stale,
@@ -54,6 +55,7 @@ pub enum Command {
     RegistryCheck,
     OperationsSummary,
     CommitSummary,
+    AppendPlan,
     Slice,
     DiffScope,
     DeletePlan,
@@ -113,6 +115,44 @@ impl Cli {
         let mut index = 0;
         while index < args.len() {
             let arg = &args[index];
+            if command.is_some() && !arg.starts_with('-') && parse_command_name(arg).is_some() {
+                match command {
+                    Some(
+                        Command::Find
+                        | Command::Scope
+                        | Command::Refs
+                        | Command::Docs
+                        | Command::CommandMap
+                        | Command::Impact
+                        | Command::MovePlan
+                        | Command::Dup
+                        | Command::ServiceShape
+                        | Command::RegistryCheck
+                        | Command::AppendPlan
+                        | Command::Slice
+                        | Command::DeletePlan
+                        | Command::FileMovePlan
+                        | Command::RenamePlan
+                        | Command::OpenSet
+                        | Command::Workset
+                        | Command::BarrelCheck
+                        | Command::OrphanFiles
+                        | Command::AssetFileCheck
+                        | Command::PatchPreview
+                        | Command::CommitFiles,
+                    ) if query.is_none() => {
+                        query = Some(arg.to_owned());
+                        index += 1;
+                        continue;
+                    }
+                    Some(Command::Verify) => {
+                        verify_args.push(arg.to_owned());
+                        index += 1;
+                        continue;
+                    }
+                    _ => bail!("unexpected positional `{arg}`"),
+                }
+            }
             match arg.as_str() {
                 "scan" => command = Some(Command::Scan),
                 "watch" => command = Some(Command::Watch),
@@ -124,6 +164,7 @@ impl Cli {
                 "scope" => command = Some(Command::Scope),
                 "refs" => command = Some(Command::Refs),
                 "docs" | "readme-coverage" => command = Some(Command::Docs),
+                "command-map" => command = Some(Command::CommandMap),
                 "verify" => command = Some(Command::Verify),
                 "verify-plan" => command = Some(Command::VerifyPlan),
                 "stale" => command = Some(Command::Stale),
@@ -136,6 +177,7 @@ impl Cli {
                 "registry-check" => command = Some(Command::RegistryCheck),
                 "operations-summary" => command = Some(Command::OperationsSummary),
                 "commit-summary" => command = Some(Command::CommitSummary),
+                "append-plan" => command = Some(Command::AppendPlan),
                 "slice" => command = Some(Command::Slice),
                 "diff-scope" => command = Some(Command::DiffScope),
                 "delete-plan" => command = Some(Command::DeletePlan),
@@ -232,12 +274,14 @@ impl Cli {
                         | Command::Scope
                         | Command::Refs
                         | Command::Docs
+                        | Command::CommandMap
                         | Command::Impact
                         | Command::MovePlan
                         | Command::Dup
                         | Command::ServiceShape
                         | Command::RegistryCheck
                         | Command::Slice
+                        | Command::AppendPlan
                         | Command::DeletePlan
                         | Command::FileMovePlan
                         | Command::RenamePlan
@@ -294,7 +338,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch-preview input file\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch-preview input file\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -302,6 +346,54 @@ fn required_value(args: &[String], index: usize, flag: &str) -> Result<String> {
     args.get(index)
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("{flag} requires a value"))
+}
+
+fn parse_command_name(value: &str) -> Option<Command> {
+    match value {
+        "scan" => Some(Command::Scan),
+        "watch" => Some(Command::Watch),
+        "changed" => Some(Command::Changed),
+        "symbols" => Some(Command::Symbols),
+        "compact" => Some(Command::Compact),
+        "brief" => Some(Command::Brief),
+        "find" => Some(Command::Find),
+        "scope" => Some(Command::Scope),
+        "refs" => Some(Command::Refs),
+        "docs" | "readme-coverage" => Some(Command::Docs),
+        "command-map" => Some(Command::CommandMap),
+        "verify" => Some(Command::Verify),
+        "verify-plan" => Some(Command::VerifyPlan),
+        "stale" => Some(Command::Stale),
+        "impact" => Some(Command::Impact),
+        "fallout" => Some(Command::Fallout),
+        "move-plan" => Some(Command::MovePlan),
+        "dup" => Some(Command::Dup),
+        "tauri-commands" => Some(Command::TauriCommands),
+        "service-shape" => Some(Command::ServiceShape),
+        "registry-check" => Some(Command::RegistryCheck),
+        "operations-summary" => Some(Command::OperationsSummary),
+        "commit-summary" => Some(Command::CommitSummary),
+        "append-plan" => Some(Command::AppendPlan),
+        "slice" => Some(Command::Slice),
+        "diff-scope" => Some(Command::DiffScope),
+        "delete-plan" => Some(Command::DeletePlan),
+        "file-move-plan" => Some(Command::FileMovePlan),
+        "rename-plan" => Some(Command::RenamePlan),
+        "import-fix-plan" => Some(Command::ImportFixPlan),
+        "open-set" => Some(Command::OpenSet),
+        "workset" => Some(Command::Workset),
+        "barrel-check" => Some(Command::BarrelCheck),
+        "orphan-files" => Some(Command::OrphanFiles),
+        "shim-check" => Some(Command::ShimCheck),
+        "large-files" => Some(Command::LargeFiles),
+        "asset-file-check" => Some(Command::AssetFileCheck),
+        "case-check" => Some(Command::CaseCheck),
+        "text-check" => Some(Command::TextCheck),
+        "patch-preview" => Some(Command::PatchPreview),
+        "commit-files" => Some(Command::CommitFiles),
+        "explain" | "--help" | "-h" => Some(Command::Explain),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -395,6 +487,15 @@ mod tests {
     }
 
     #[test]
+    fn parses_command_map_query() {
+        let cli = Cli::parse(["command-map".to_string(), "append-plan".to_string()])
+            .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::CommandMap);
+        assert_eq!(cli.options.query.as_deref(), Some("append-plan"));
+    }
+
+    #[test]
     fn parses_move_plan_by() {
         let cli = Cli::parse([
             "move-plan".to_string(),
@@ -406,6 +507,24 @@ mod tests {
 
         assert_eq!(cli.command, Command::MovePlan);
         assert_eq!(cli.options.by.as_deref(), Some("tauri-command"));
+    }
+
+    #[test]
+    fn parses_append_plan_task() {
+        let cli = Cli::parse([
+            "append-plan".to_string(),
+            "crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx".to_string(),
+            "--task".to_string(),
+            "component-definition".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::AppendPlan);
+        assert_eq!(
+            cli.options.query.as_deref(),
+            Some("crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx")
+        );
+        assert_eq!(cli.options.task.as_deref(), Some("component-definition"));
     }
 
     #[test]
@@ -455,7 +574,10 @@ mod tests {
         .expect("cli should parse");
 
         assert_eq!(cli.command, Command::Workset);
-        assert_eq!(cli.options.from_impact.as_deref(), Some("EditorSelectionRef"));
+        assert_eq!(
+            cli.options.from_impact.as_deref(),
+            Some("EditorSelectionRef")
+        );
         assert!(cli.options.status);
         assert!(cli.options.with_split_hints);
     }

@@ -1,3 +1,4 @@
+pub mod append_plan;
 pub mod asset_file_check;
 pub mod barrel_check;
 pub mod case_check;

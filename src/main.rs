@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let mut cli = Cli::parse(std::env::args().skip(1))?;
 
     match cli.command {
-        Command::Brief | Command::Changed | Command::Find | Command::Docs => {
+        Command::Brief | Command::Changed | Command::Find | Command::Docs | Command::CommandMap => {
             cli.options.level = 0;
             cli.options.ai = false;
         }
@@ -46,12 +46,15 @@ fn main() -> Result<()> {
         {
             cli.options.level = 2;
         }
-        Command::OpenSet | Command::LargeFiles | Command::PatchPreview
+        Command::OpenSet | Command::LargeFiles | Command::PatchPreview | Command::AppendPlan
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
         }
-        Command::Workset if (cli.options.from_impact.is_some() || cli.options.status) && cli.options.level < 2 => {
+        Command::Workset
+            if (cli.options.from_impact.is_some() || cli.options.status)
+                && cli.options.level < 2 =>
+        {
             cli.options.level = 2;
         }
         Command::OrphanFiles if cli.options.level < 3 => {
@@ -140,6 +143,14 @@ fn main() -> Result<()> {
         Command::Docs => {
             let map = scan::scan_project(&cli.options)?;
             report::print_docs(&cli.options.root, &map);
+        }
+        Command::CommandMap => {
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("command-map requires a query"))?;
+            report::command_map::print_command_map(query)?;
         }
         Command::Verify => {
             report::run_verify(
@@ -248,6 +259,21 @@ fn main() -> Result<()> {
                 query,
                 cli.options.symbol.as_deref(),
                 cli.options.radius,
+            )?;
+        }
+        Command::AppendPlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("append-plan requires a file path"))?;
+            report::file_ops::append_plan::print_append_plan(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.task.as_deref(),
+                cli.options.limit,
             )?;
         }
         Command::DiffScope => {
