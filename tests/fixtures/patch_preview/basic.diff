@@ -1,0 +1,6 @@
+diff --git a/crates/apps/amigo-editor/src/app/store/editorReducer.ts b/crates/apps/amigo-editor/src/app/store/editorReducer.ts
+@@ -10,0 +11,2 @@
++export const x = 1;
+diff --git a/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx b/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx
+@@ -4,0 +5,2 @@
++const view = true;

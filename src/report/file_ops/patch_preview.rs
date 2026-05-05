@@ -254,15 +254,13 @@ mod tests {
 
     #[test]
     fn snapshot_patch_preview() {
-        let patch = r#"diff --git a/crates/apps/amigo-editor/src/app/store/editorReducer.ts b/crates/apps/amigo-editor/src/app/store/editorReducer.ts
-@@ -10,0 +11,2 @@
-+export const x = 1;
-diff --git a/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx b/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx
-@@ -4,0 +5,2 @@
-+const view = true;
-"#;
         assert_eq!(
-            render_patch_preview(&sample_map(), patch, 80).trim(),
+            render_patch_preview(
+                &sample_map(),
+                include_str!("../../../tests/fixtures/patch_preview/basic.diff"),
+                80
+            )
+            .trim(),
             include_str!("../../../tests/snapshots/patch_preview.snap").trim()
         );
     }

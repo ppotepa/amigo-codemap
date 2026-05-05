@@ -88,3 +88,18 @@ cargo run -p amigo-codemap -- patch-preview --from patch.diff
 cargo run -p amigo-codemap -- commit-files --changed
 cargo run -p amigo-codemap -- commit-summary --changed
 ```
+
+## Problem to command
+
+| Problem | First command | Follow-up |
+| --- | --- | --- |
+| What changed? | `changed --group package` | `diff-scope --changed` |
+| What should I verify? | `verify-plan --changed` | `fallout --from ...` |
+| What files should I read first? | `open-set <symbol> --task migrate` | `slice <file> --symbol <name>` |
+| What does a symbol change affect? | `impact <symbol> --group feature` | `workset <name> --from-impact <symbol> --save` |
+| Can I delete this file? | `delete-plan <file>` | `stale --patterns ...` |
+| What breaks if I move this file? | `file-move-plan <from> --to <to>` | `import-fix-plan --changed` |
+| Which imports are stale or missing? | `import-fix-plan --changed` | `npm run build` + `fallout` |
+| Which files are probably dead shims? | `orphan-files <dir>` | `shim-check --changed` |
+| Which big file should I split next? | `large-files --top 20 --with-split-hints` | `move-plan <file>` |
+| How should I split the work into commits? | `commit-files --changed` | `commit-summary --changed` |
