@@ -1,0 +1,7 @@
+src/main-window/MainEditorWindow.tsx(12,8): error TS2305: Module '"./workspaceRuntimeServices"' has no exported member 'WorkspaceRuntimeServices'.
+src/features/inspector/InspectorPanel.tsx(88,21): error TS2339: Property 'resolvedSelection' does not exist on type 'WorkspaceRuntimeServices'.
+error[E0603]: function `reveal_path` is private
+  --> crates/apps/amigo-editor/src-tauri/src/commands/project_tree.rs:32:12
+   |
+32 | use super::shared::reveal_path;
+   |            ^^^^^^^^^^^^^^^^^^^ private function

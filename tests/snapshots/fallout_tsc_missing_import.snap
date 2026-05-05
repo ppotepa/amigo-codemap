@@ -1,0 +1,14 @@
+task: fallout
+errors: 2
+groups:
+  missing export/import: 1
+  missing name/import: 1
+files:
+  src/app/store/editorReducer.ts: 1
+    likely cause: service-shape mismatch
+  src/main-window/MainEditorWindow.tsx: 1
+    likely cause: service-shape mismatch
+next:
+  1. fix missing imports/exports first
+  2. fix type-shape errors
+  3. rerun the failing command

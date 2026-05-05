@@ -14,6 +14,10 @@ pub struct Options {
     pub lines: bool,
     pub limit: usize,
     pub verify_args: Vec<String>,
+    pub changed_only: bool,
+    pub patterns: Vec<String>,
+    pub from: Option<PathBuf>,
+    pub by: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +34,17 @@ pub enum Command {
     Refs,
     Docs,
     Verify,
+    VerifyPlan,
+    Stale,
+    Impact,
+    Fallout,
+    MovePlan,
+    Dup,
+    TauriCommands,
+    ServiceShape,
+    RegistryCheck,
+    OperationsSummary,
+    CommitSummary,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +69,10 @@ impl Cli {
         let mut lines = false;
         let mut limit = 80;
         let mut verify_args = Vec::new();
+        let mut changed_only = false;
+        let mut patterns = Vec::new();
+        let mut from = None;
+        let mut by = None;
 
         let args = args.into_iter().collect::<Vec<_>>();
         let mut index = 0;
@@ -71,6 +90,17 @@ impl Cli {
                 "refs" => command = Some(Command::Refs),
                 "docs" | "readme-coverage" => command = Some(Command::Docs),
                 "verify" => command = Some(Command::Verify),
+                "verify-plan" => command = Some(Command::VerifyPlan),
+                "stale" => command = Some(Command::Stale),
+                "impact" => command = Some(Command::Impact),
+                "fallout" => command = Some(Command::Fallout),
+                "move-plan" => command = Some(Command::MovePlan),
+                "dup" => command = Some(Command::Dup),
+                "tauri-commands" => command = Some(Command::TauriCommands),
+                "service-shape" => command = Some(Command::ServiceShape),
+                "registry-check" => command = Some(Command::RegistryCheck),
+                "operations-summary" => command = Some(Command::OperationsSummary),
+                "commit-summary" => command = Some(Command::CommitSummary),
                 "explain" | "--help" | "-h" => command = Some(Command::Explain),
                 "--root" => {
                     index += 1;
@@ -94,13 +124,41 @@ impl Cli {
                     group = Some(required_value(&args, index, "--group")?);
                 }
                 "--lines" => lines = true,
+                "--changed" => changed_only = true,
+                "--patterns" => {
+                    index += 1;
+                    patterns = required_value(&args, index, "--patterns")?
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_owned)
+                        .collect();
+                }
+                "--from" => {
+                    index += 1;
+                    from = Some(PathBuf::from(required_value(&args, index, "--from")?));
+                }
+                "--by" => {
+                    index += 1;
+                    by = Some(required_value(&args, index, "--by")?);
+                }
                 "--limit" => {
                     index += 1;
                     limit = required_value(&args, index, "--limit")?.parse::<usize>()?;
                 }
                 unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
                 value => match command {
-                    Some(Command::Find | Command::Scope | Command::Refs | Command::Docs)
+                    Some(
+                        Command::Find
+                        | Command::Scope
+                        | Command::Refs
+                        | Command::Docs
+                        | Command::Impact
+                        | Command::MovePlan
+                        | Command::Dup
+                        | Command::ServiceShape
+                        | Command::RegistryCheck,
+                    )
                         if query.is_none() =>
                     {
                         query = Some(value.to_owned());
@@ -128,6 +186,10 @@ impl Cli {
                 lines,
                 limit,
                 verify_args,
+                changed_only,
+                patterns,
+                from,
+                by,
             },
         })
     }
@@ -135,7 +197,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan      write .amigo/codemap.json once\n  watch     update codemap after filesystem changes\n  compact   write compact AI JSON\n  brief     print tiny repo summary\n  changed   print git changed files, optionally --group path|package|language|status\n  symbols   print detected symbols\n  find      find text in indexed files\n  scope     print small context for a file, area, package, or symbol\n  refs      find definitions and text references\n  docs      print README coverage for workspace packages\n  verify    run capped checks: npm-build|npm-test|cargo-check|cargo-test\n  explain   print this help\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group changed output\n  --lines          include matching lines for find/refs\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout input file\n  --by <kind>      move/dup strategy\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -175,5 +237,74 @@ mod tests {
 
         assert_eq!(cli.command, Command::Changed);
         assert_eq!(cli.options.group.as_deref(), Some("package"));
+    }
+
+    #[test]
+    fn parses_stale_patterns() {
+        let cli = Cli::parse([
+            "stale".to_string(),
+            "--patterns".to_string(),
+            "one,two".to_string(),
+            "--changed".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Stale);
+        assert_eq!(cli.options.patterns, vec!["one", "two"]);
+        assert!(cli.options.changed_only);
+    }
+
+    #[test]
+    fn parses_verify_plan_changed() {
+        let cli = Cli::parse(["verify-plan".to_string(), "--changed".to_string()])
+            .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::VerifyPlan);
+        assert!(cli.options.changed_only);
+    }
+
+    #[test]
+    fn parses_impact_group() {
+        let cli = Cli::parse([
+            "impact".to_string(),
+            "EditorSelectionRef".to_string(),
+            "--group".to_string(),
+            "feature".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Impact);
+        assert_eq!(cli.options.query.as_deref(), Some("EditorSelectionRef"));
+        assert_eq!(cli.options.group.as_deref(), Some("feature"));
+    }
+
+    #[test]
+    fn parses_fallout_from() {
+        let cli = Cli::parse([
+            "fallout".to_string(),
+            "--from".to_string(),
+            "npm-build.log".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Fallout);
+        assert_eq!(
+            cli.options.from.as_ref().map(|path| path.display().to_string()),
+            Some("npm-build.log".to_string())
+        );
+    }
+
+    #[test]
+    fn parses_move_plan_by() {
+        let cli = Cli::parse([
+            "move-plan".to_string(),
+            "crates/apps/amigo-editor/src-tauri/src/commands/mod.rs".to_string(),
+            "--by".to_string(),
+            "tauri-command".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::MovePlan);
+        assert_eq!(cli.options.by.as_deref(), Some("tauri-command"));
     }
 }

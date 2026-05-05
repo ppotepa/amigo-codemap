@@ -1,0 +1,10 @@
+task: registry-check components
+entries: 2
+missing: 0
+duplicates: 0
+placeholder: 0
+kinds:
+  assets.browser -> builtinComponents.tsx
+  files.browser -> builtinComponents.tsx
+next:
+  1. no action

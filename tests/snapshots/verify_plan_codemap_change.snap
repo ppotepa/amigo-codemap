@@ -1,0 +1,19 @@
+task: verify-plan
+changed:
+  frontend: no
+  tauri: no
+  codemap: yes
+  engine: no
+  docs: no
+required:
+  cargo build -p amigo-codemap
+  cargo test -p amigo-codemap
+optional:
+  none
+skip:
+  full cargo test workspace
+reason:
+  amigo-codemap source changed
+next:
+  1. run required checks
+  2. use fallout if build output is noisy

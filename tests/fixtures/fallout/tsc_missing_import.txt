@@ -1,0 +1,2 @@
+src/main-window/MainEditorWindow.tsx(12,8): error TS2305: Module '"./workspaceRuntimeServices"' has no exported member 'WorkspaceRuntimeServices'.
+src/app/store/editorReducer.ts(44,17): error TS2304: Cannot find name 'EditorSelectionRef'.

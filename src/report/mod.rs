@@ -7,6 +7,18 @@ use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 
+pub mod common;
+pub mod dup;
+pub mod fallout;
+pub mod impact;
+pub mod move_plan;
+pub mod registry;
+pub mod service_shape;
+pub mod stale;
+pub mod summary;
+pub mod tauri;
+pub mod verify_plan;
+
 pub fn print_brief(map: &CodeMap) {
     println!(
         "repo: {}  branch: {}  rev: {}  dirty: {}",

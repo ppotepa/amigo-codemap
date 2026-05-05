@@ -17,7 +17,19 @@ fn main() -> Result<()> {
             cli.options.level = 0;
             cli.options.ai = false;
         }
-        Command::Scope | Command::Refs if cli.options.level < 2 => {
+        Command::VerifyPlan
+        | Command::Stale
+        | Command::Fallout
+        | Command::MovePlan
+        | Command::Dup
+        | Command::TauriCommands
+        | Command::RegistryCheck
+        | Command::OperationsSummary
+        | Command::CommitSummary => {
+            cli.options.level = 0;
+            cli.options.ai = false;
+        }
+        Command::Scope | Command::Refs | Command::Impact | Command::ServiceShape if cli.options.level < 2 => {
             cli.options.level = 2;
         }
         _ => {}
@@ -110,6 +122,93 @@ fn main() -> Result<()> {
                 &cli.options.verify_args,
                 cli.options.limit,
             )?;
+        }
+        Command::VerifyPlan => {
+            let map = scan::scan_project(&cli.options)?;
+            report::verify_plan::print_verify_plan(&map, cli.options.changed_only);
+        }
+        Command::Stale => {
+            let map = scan::scan_project(&cli.options)?;
+            report::stale::print_stale(
+                &cli.options.root,
+                &map,
+                &cli.options.patterns,
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
+        }
+        Command::Impact => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("impact requires a query"))?;
+            report::impact::print_impact(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.group.as_deref(),
+                cli.options.lines,
+                cli.options.limit,
+            )?;
+        }
+        Command::Fallout => {
+            report::fallout::print_fallout(cli.options.from.as_ref(), cli.options.limit)?;
+        }
+        Command::MovePlan => {
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("move-plan requires a query"))?;
+            report::move_plan::print_move_plan(
+                &cli.options.root,
+                query,
+                cli.options.by.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::Dup => {
+            let map = scan::scan_project(&cli.options)?;
+            report::dup::print_dup(
+                &cli.options.root,
+                &map,
+                cli.options.query.as_deref(),
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
+        }
+        Command::TauriCommands => {
+            report::tauri::print_tauri_commands(&cli.options.root, cli.options.limit)?;
+        }
+        Command::ServiceShape => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("service-shape requires a query"))?;
+            report::service_shape::print_service_shape(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::RegistryCheck => {
+            report::registry::print_registry_check(
+                &cli.options.root,
+                cli.options.query.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::OperationsSummary => {
+            report::summary::print_operations_summary(&cli.options.root, cli.options.limit)?;
+        }
+        Command::CommitSummary => {
+            let map = scan::scan_project(&cli.options)?;
+            report::summary::print_commit_summary(&map, cli.options.limit);
         }
         Command::Explain => cli::print_help(),
     }

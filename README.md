@@ -28,6 +28,22 @@ Workspace code map generator for LLM-assisted development.
 - `docs` - README coverage for workspace packages.
 - `verify <profile>` - capped command output for `npm-build`, `npm-test`, `cargo-check`, or `cargo-test`.
 
+## Refactor reports
+
+These commands provide compact operational context for LLM-assisted refactors.
+
+- `verify-plan --changed` - suggests the smallest useful verification commands.
+- `stale --patterns a,b,c` - finds stale aliases, placeholders, old names, and cleanup candidates.
+- `impact <symbol> --group feature` - groups direct refs and likely affected areas.
+- `fallout [--from file]` - summarizes TypeScript/Rust build output.
+- `move-plan <file> --by tauri-command|symbol` - suggests split groups and move risks.
+- `dup [symbol]` - finds duplicate helpers by symbol name and simple normalized bodies.
+- `tauri-commands` - checks command definitions against `generate_handler!`.
+- `service-shape <TypeName>` - groups service bag fields by usage.
+- `registry-check [kind]` - checks known editor registries.
+- `operations-summary` - summarizes costly tasks from `operations.md`.
+- `commit-summary --changed` - creates a compact change summary.
+
 ## Examples
 ```powershell
 cargo run -p amigo-codemap -- brief
@@ -36,4 +52,11 @@ cargo run -p amigo-codemap -- find "AssetTreePanel" --limit 20
 cargo run -p amigo-codemap -- scope AssetTreePanel --limit 30
 cargo run -p amigo-codemap -- refs asset-tree-section --limit 20
 cargo run -p amigo-codemap -- docs
+cargo run -p amigo-codemap -- verify-plan --changed
+cargo run -p amigo-codemap -- impact EditorSelectionRef --group feature --limit 80
+cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection
+cargo run -p amigo-codemap -- move-plan crates/apps/amigo-editor/src-tauri/src/commands/mod.rs --by tauri-command
+npm run build 2>&1 | cargo run -p amigo-codemap -- fallout --limit 80
+cargo run -p amigo-codemap -- tauri-commands
+cargo run -p amigo-codemap -- commit-summary --changed
 ```

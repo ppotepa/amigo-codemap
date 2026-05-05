@@ -1,0 +1,17 @@
+task: tauri-commands
+commands: 4
+registered: 4
+missing registration: 0
+registered without definition: 0
+duplicates: 0
+groups:
+  project_files: 1
+  project_tree: 1
+  session: 1
+  windows: 1
+risk:
+  none
+next:
+  1. fix missing registrations
+  2. remove duplicate wrappers
+  3. run cargo test -p amigo-editor --lib

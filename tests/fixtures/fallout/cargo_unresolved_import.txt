@@ -1,0 +1,5 @@
+error[E0432]: unresolved import `crate::commands::project_tree::reveal_scene_document`
+  --> crates/apps/amigo-editor/src-tauri/src/commands/mod.rs:12:5
+   |
+12 | use crate::commands::project_tree::reveal_scene_document;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `reveal_scene_document` in `commands::project_tree`
