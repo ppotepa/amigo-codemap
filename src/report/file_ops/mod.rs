@@ -16,6 +16,7 @@ pub mod large_files;
 pub mod model;
 pub mod open_set;
 pub mod orphan_files;
+pub mod patch_apply;
 pub mod patch_preview;
 pub mod rename_plan;
 pub mod shim_check;

@@ -62,6 +62,8 @@ These commands provide compact operational context for LLM-assisted refactors.
 - `case-check [--changed]` - catches case-sensitive import collisions.
 - `text-check [--changed]` - line endings/BOM/binary/text quick pass.
 - `patch-preview --from patch.diff` - summaries changed symbols and risk before apply.
+- `patch-check --from patch.diff` - dry-runs a unified diff against the workspace.
+- `patch-apply --from patch.diff --write` - applies exact unified diff hunks to workspace files.
 - `commit-files [--changed]` - suggests logical commit bundles.
 
 ## Examples
@@ -92,6 +94,8 @@ cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelec
 cargo run -p amigo-codemap -- delete-plan crates/apps/amigo-editor/src/main-window/workspacePanels.tsx
 cargo run -p amigo-codemap -- import-fix-plan --changed
 cargo run -p amigo-codemap -- patch-preview --from patch.diff
+cargo run -p amigo-codemap -- patch-check --from patch.diff
+cargo run -p amigo-codemap -- patch-apply --from patch.diff --write
 cargo run -p amigo-codemap -- commit-files --changed
 cargo run -p amigo-codemap -- commit-summary --changed
 ```
@@ -173,6 +177,7 @@ Default workflow:
 | What files should I read first? | `open-set <symbol> --task migrate` | `slice <file> --symbol <name>` |
 | Where should I append a new block or registry entry? | `append-plan <file> --task ...` | `open-set <symbol>` |
 | What donor file should I copy and what must I rename? | `copy-plan <target> --task ...` | `append-plan <target>` |
+| Can this pasted unified diff apply cleanly? | `patch-check --from patch.diff` | `patch-apply --from patch.diff --write` |
 | What does a symbol change affect? | `impact <symbol> --group feature` | `workset <name> --from-impact <symbol> --save` |
 | Can I delete this file? | `delete-plan <file>` | `stale --patterns ...` |
 | What breaks if I move this file? | `file-move-plan <from> --to <to>` | `import-fix-plan --changed` |

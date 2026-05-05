@@ -37,6 +37,8 @@ fn main() -> Result<()> {
         | Command::AssetFileCheck
         | Command::CaseCheck
         | Command::TextCheck
+        | Command::PatchCheck
+        | Command::PatchApply
         | Command::CommitFiles => {
             cli.options.level = 0;
             cli.options.ai = false;
@@ -479,6 +481,21 @@ fn main() -> Result<()> {
                 &cli.options.root,
                 &map,
                 cli.options.from.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::PatchCheck => {
+            report::file_ops::patch_apply::print_patch_check(
+                &cli.options.root,
+                cli.options.from.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::PatchApply => {
+            report::file_ops::patch_apply::print_patch_apply(
+                &cli.options.root,
+                cli.options.from.as_deref(),
+                cli.options.write,
                 cli.options.limit,
             )?;
         }

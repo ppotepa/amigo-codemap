@@ -27,6 +27,7 @@ pub struct Options {
     pub with_split_hints: bool,
     pub save: bool,
     pub status: bool,
+    pub write: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +74,8 @@ pub enum Command {
     CaseCheck,
     TextCheck,
     PatchPreview,
+    PatchCheck,
+    PatchApply,
     CommitFiles,
 }
 
@@ -111,6 +114,7 @@ impl Cli {
         let mut with_split_hints = false;
         let mut save = false;
         let mut status = false;
+        let mut write = false;
 
         let args = args.into_iter().collect::<Vec<_>>();
         let mut index = 0;
@@ -141,6 +145,8 @@ impl Cli {
                         | Command::OrphanFiles
                         | Command::AssetFileCheck
                         | Command::PatchPreview
+                        | Command::PatchCheck
+                        | Command::PatchApply
                         | Command::CommitFiles,
                     ) if query.is_none() => {
                         query = Some(arg.to_owned());
@@ -197,6 +203,8 @@ impl Cli {
                 "case-check" => command = Some(Command::CaseCheck),
                 "text-check" => command = Some(Command::TextCheck),
                 "patch-preview" => command = Some(Command::PatchPreview),
+                "patch-check" => command = Some(Command::PatchCheck),
+                "patch-apply" => command = Some(Command::PatchApply),
                 "commit-files" => command = Some(Command::CommitFiles),
                 "explain" | "--help" | "-h" => command = Some(Command::Explain),
                 "--root" => {
@@ -270,6 +278,7 @@ impl Cli {
                 "--with-split-hints" => with_split_hints = true,
                 "--save" => save = true,
                 "--status" => status = true,
+                "--write" => write = true,
                 unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
                 value => match command {
                     Some(
@@ -295,6 +304,8 @@ impl Cli {
                         | Command::OrphanFiles
                         | Command::AssetFileCheck
                         | Command::PatchPreview
+                        | Command::PatchCheck
+                        | Command::PatchApply
                         | Command::CommitFiles,
                     ) if query.is_none() => {
                         query = Some(value.to_owned());
@@ -335,6 +346,7 @@ impl Cli {
                 with_split_hints,
                 save,
                 status,
+                write,
             },
         })
     }
@@ -342,7 +354,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch-preview input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply to modify files\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -395,6 +407,8 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "case-check" => Some(Command::CaseCheck),
         "text-check" => Some(Command::TextCheck),
         "patch-preview" => Some(Command::PatchPreview),
+        "patch-check" => Some(Command::PatchCheck),
+        "patch-apply" => Some(Command::PatchApply),
         "commit-files" => Some(Command::CommitFiles),
         "explain" | "--help" | "-h" => Some(Command::Explain),
         _ => None,
@@ -611,5 +625,23 @@ mod tests {
         );
         assert!(cli.options.status);
         assert!(cli.options.with_split_hints);
+    }
+
+    #[test]
+    fn parses_patch_apply_write() {
+        let cli = Cli::parse([
+            "patch-apply".to_string(),
+            "--from".to_string(),
+            "patch.diff".to_string(),
+            "--write".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::PatchApply);
+        assert_eq!(
+            cli.options.from.as_deref(),
+            Some(std::path::Path::new("patch.diff"))
+        );
+        assert!(cli.options.write);
     }
 }

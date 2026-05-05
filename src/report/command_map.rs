@@ -66,6 +66,38 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["append-plan", "open-set", "slice"],
     },
     CommandDescriptor {
+        name: "patch-check",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
+        ],
+        related: &["patch-apply", "patch-preview", "append-plan"],
+    },
+    CommandDescriptor {
+        name: "patch-apply",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
+        ],
+        related: &["patch-check", "patch-preview", "append-plan"],
+    },
+    CommandDescriptor {
         name: "open-set",
         category: "file-ops",
         cli_paths: CLI_PATH,
@@ -292,5 +324,10 @@ mod tests {
     #[test]
     fn catalog_contains_command_map() {
         assert!(COMMANDS.iter().any(|command| command.name == "command-map"));
+    }
+
+    #[test]
+    fn catalog_contains_patch_apply() {
+        assert!(COMMANDS.iter().any(|command| command.name == "patch-apply"));
     }
 }
