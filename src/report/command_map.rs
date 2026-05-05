@@ -47,7 +47,23 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/cli.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/append_plan.rs",
         ],
-        related: &["open-set", "rename-plan", "slice"],
+        related: &["copy-plan", "open-set", "rename-plan", "slice"],
+    },
+    CommandDescriptor {
+        name: "copy-plan",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/copy_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/copy_plan.rs",
+        ],
+        related: &["append-plan", "open-set", "slice"],
     },
     CommandDescriptor {
         name: "open-set",
@@ -266,6 +282,11 @@ mod tests {
     #[test]
     fn catalog_contains_append_plan() {
         assert!(COMMANDS.iter().any(|command| command.name == "append-plan"));
+    }
+
+    #[test]
+    fn catalog_contains_copy_plan() {
+        assert!(COMMANDS.iter().any(|command| command.name == "copy-plan"));
     }
 
     #[test]

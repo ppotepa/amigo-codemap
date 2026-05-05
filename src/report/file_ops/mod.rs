@@ -4,6 +4,7 @@ pub mod barrel_check;
 pub mod case_check;
 pub mod commit_files;
 pub mod common;
+pub mod copy_plan;
 pub mod delete_plan;
 pub mod diff;
 pub mod diff_scope;

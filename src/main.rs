@@ -46,7 +46,11 @@ fn main() -> Result<()> {
         {
             cli.options.level = 2;
         }
-        Command::OpenSet | Command::LargeFiles | Command::PatchPreview | Command::AppendPlan
+        Command::OpenSet
+        | Command::LargeFiles
+        | Command::PatchPreview
+        | Command::AppendPlan
+        | Command::CopyPlan
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
@@ -272,6 +276,22 @@ fn main() -> Result<()> {
                 &cli.options.root,
                 &map,
                 query,
+                cli.options.task.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::CopyPlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("copy-plan requires a target file path"))?;
+            report::file_ops::copy_plan::print_copy_plan(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.from.as_deref(),
                 cli.options.task.as_deref(),
                 cli.options.limit,
             )?;

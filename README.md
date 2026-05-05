@@ -45,6 +45,7 @@ These commands provide compact operational context for LLM-assisted refactors.
 - `operations-summary` - summarizes costly tasks from `operations.md`.
 - `commit-summary --changed` - creates a compact change summary.
 - `append-plan <file> [--task name]` - suggests append anchors, donor files, and companion files for additive edits.
+- `copy-plan <target> [--from donor] [--task name]` - picks a donor file, rename hotspots, and mirrored companion files for copy-driven edits.
 - `slice <file> --symbol <name> [--radius N]` - compact file fragment around one symbol.
 - `diff-scope` - changed files summary by symbols and import-level risk.
 - `delete-plan <file> [--changed]` - checks whether file can be removed safely.
@@ -72,6 +73,7 @@ cargo run -p amigo-codemap -- scope AssetTreePanel --limit 30
 cargo run -p amigo-codemap -- refs asset-tree-section --limit 20
 cargo run -p amigo-codemap -- docs
 cargo run -p amigo-codemap -- command-map append-plan
+cargo run -p amigo-codemap -- command-map copy-plan
 cargo run -p amigo-codemap -- verify-plan --changed
 cargo run -p amigo-codemap -- impact EditorSelectionRef --group feature --limit 80
 cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection
@@ -81,6 +83,7 @@ cargo run -p amigo-codemap -- tauri-commands
 cargo run -p amigo-codemap -- diff-scope --changed --limit 80
 cargo run -p amigo-codemap -- open-set EditorSelectionRef --task migrate --limit 12
 cargo run -p amigo-codemap -- append-plan crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx --task component-definition --limit 12
+cargo run -p amigo-codemap -- copy-plan crates/apps/amigo-editor/src/startup/NewPanel.tsx --from crates/apps/amigo-editor/src/startup/ModsPanel.tsx --task panel --limit 12
 cargo run -p amigo-codemap -- file-move-plan crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx --to crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx
 cargo run -p amigo-codemap -- workset selection-migration --from-impact EditorSelectionRef --save
 cargo run -p amigo-codemap -- workset selection-migration --status
@@ -102,6 +105,7 @@ cargo run -p amigo-codemap -- commit-summary --changed
 | Where is this codemap command wired? | `command-map <name>` | `scope` on the reported files |
 | What files should I read first? | `open-set <symbol> --task migrate` | `slice <file> --symbol <name>` |
 | Where should I append a new block or registry entry? | `append-plan <file> --task ...` | `open-set <symbol>` |
+| What donor file should I copy and what must I rename? | `copy-plan <target> --task ...` | `append-plan <target>` |
 | What does a symbol change affect? | `impact <symbol> --group feature` | `workset <name> --from-impact <symbol> --save` |
 | Can I delete this file? | `delete-plan <file>` | `stale --patterns ...` |
 | What breaks if I move this file? | `file-move-plan <from> --to <to>` | `import-fix-plan --changed` |
