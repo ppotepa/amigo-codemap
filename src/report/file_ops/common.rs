@@ -157,9 +157,17 @@ pub fn resolve_relative_import(
         .find(|candidate| candidate.exists())
         .and_then(|candidate| {
             candidate
+                .canonicalize()
+                .ok()
+                .as_ref()
+                .and_then(|canonical| canonical.strip_prefix(&normalized_root).ok())
+                .map(PathBuf::from)
+                .or_else(|| {
+                    candidate
                 .strip_prefix(&normalized_root)
                 .ok()
                 .map(PathBuf::from)
+                })
         })
 }
 

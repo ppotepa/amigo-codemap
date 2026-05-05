@@ -7,7 +7,7 @@ use crate::model::CodeMap;
 use crate::report::common::{feature_group, is_codemap, is_docs, is_test_file, slash_path};
 
 use super::common::{changed_by_path, changed_status_by_path, text_refs_like};
-use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_open_set(
     root: &Path,
@@ -16,6 +16,18 @@ pub fn print_open_set(
     task: Option<&str>,
     limit: usize,
 ) -> Result<()> {
+    let report = build_open_set_report(root, map, query, task, limit)?;
+    print!("{}", render_report(&report));
+    Ok(())
+}
+
+fn build_open_set_report(
+    root: &Path,
+    map: &CodeMap,
+    query: &str,
+    task: Option<&str>,
+    limit: usize,
+) -> Result<FileOpReport> {
     let changed_paths = changed_by_path(map);
     let changed_status = changed_status_by_path(map);
     let refs = text_refs_like(root, map, query, usize::MAX).unwrap_or_default();
@@ -114,7 +126,7 @@ pub fn print_open_set(
         });
     }
 
-    super::model::print_report(&FileOpReport {
+    Ok(FileOpReport {
         task: format!("open-set {query}"),
         scope: vec![
             format!("query: {query}"),
@@ -137,9 +149,7 @@ pub fn print_open_set(
                 label: "run impact again for the edited symbol".to_string(),
             },
         ],
-    });
-
-    Ok(())
+    })
 }
 
 fn rank_open_set_items(
@@ -264,7 +274,11 @@ fn is_test_path(path: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_low_value_path, rank_open_set_items};
+    use std::path::PathBuf;
+
+    use crate::model::{CodeMap, FileEntry, GitInfo, SymbolEntry};
+
+    use super::{build_open_set_report, is_low_value_path, rank_open_set_items};
     use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
@@ -327,5 +341,89 @@ mod tests {
         assert!(ranked.contains_key(
             "crates/apps/amigo-editor/src/app/selectionSelectors.ts"
         ));
+    }
+
+    #[test]
+    fn snapshot_open_set() {
+        let root = temp_root("open-set");
+        std::fs::create_dir_all(root.join("crates/apps/amigo-editor/src/app/store"))
+            .expect("create store dir");
+        std::fs::create_dir_all(root.join("crates/apps/amigo-editor/src/app"))
+            .expect("create app dir");
+        std::fs::write(
+            root.join("crates/apps/amigo-editor/src/app/selectionTypes.ts"),
+            "export type EditorSelectionRef = string;\n",
+        )
+        .expect("write definition");
+        std::fs::write(
+            root.join("crates/apps/amigo-editor/src/app/store/editorState.ts"),
+            "const value: EditorSelectionRef = 'x';\n",
+        )
+        .expect("write ref");
+        std::fs::write(root.join("README.md"), "EditorSelectionRef docs\n").expect("write docs");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/app/selectionTypes.ts"),
+                    language: "ts".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/app/store/editorState.ts"),
+                    language: "ts".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f3".to_string(),
+                    path: PathBuf::from("README.md"),
+                    language: "md".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: vec![SymbolEntry {
+                name: "EditorSelectionRef".to_string(),
+                kind: "type".to_string(),
+                file_id: "f1".to_string(),
+                line: 1,
+                visibility: "export".to_string(),
+            }],
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: true,
+                changed: Vec::new(),
+            },
+        };
+
+        let report = build_open_set_report(root.as_path(), &map, "EditorSelectionRef", Some("migrate"), 5)
+            .expect("open-set should build");
+        assert_eq!(
+            crate::report::file_ops::model::render_report(&report).trim(),
+            include_str!("../../../tests/snapshots/open_set.snap").trim()
+        );
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-{name}-{unique}"));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 }

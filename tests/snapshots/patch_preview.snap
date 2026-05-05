@@ -1,0 +1,20 @@
+task: patch-preview
+scope:
+  files: from file
+findings:
+  files touched: 2
+  areas:
+    app/store: 1 files
+    main-window: 1 files
+  symbols likely touched:
+    MainEditorWindow
+    reducer
+risk:
+  High: reducer/action compatibility
+verify:
+  npm run build
+  npm test
+next:
+  1. inspect highest-risk area first
+  2. apply patch
+  3. run fallout on build output

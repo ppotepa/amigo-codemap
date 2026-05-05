@@ -6,10 +6,12 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::model::CodeMap;
-use crate::report::common::{files_by_id, slash_path, symbols_matching, text_refs};
+use crate::report::common::{
+    files_by_id, is_codemap, is_docs, is_test_file, slash_path, symbols_matching, text_refs,
+};
 use crate::report::verify_plan::plan_for_paths;
 
-use super::model::{FileOpReport, NextAction};
+use super::model::{render_report, FileOpReport, NextAction};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Workset {
@@ -106,6 +108,12 @@ fn normalize_root(root: &Path) -> std::path::PathBuf {
 }
 
 fn print_workset_status(name: &str, workset_path: &Path) -> Result<()> {
+    let report = workset_status_report(name, workset_path)?;
+    print!("{}", render_report(&report));
+    Ok(())
+}
+
+fn workset_status_report(name: &str, workset_path: &Path) -> Result<FileOpReport> {
     let mut findings = Vec::new();
     let mut verify = Vec::new();
 
@@ -128,7 +136,7 @@ fn print_workset_status(name: &str, workset_path: &Path) -> Result<()> {
         verify.push("save workset before checking status".to_string());
     }
 
-    super::model::print_report(&FileOpReport {
+    Ok(FileOpReport {
         task: format!("workset {name}"),
         scope: vec![format!("name: {name}"), "mode: status".to_string()],
         findings,
@@ -142,9 +150,7 @@ fn print_workset_status(name: &str, workset_path: &Path) -> Result<()> {
                 label: "finish pending files".to_string(),
             },
         ],
-    });
-
-    Ok(())
+    })
 }
 
 fn build_workset(
@@ -234,6 +240,9 @@ fn build_impact_files(root: &Path, map: &CodeMap, symbol: &str) -> Result<Vec<Wo
     }
 
     for reference in text_refs(root, map, symbol, usize::MAX)? {
+        if should_skip_workset_path(&reference.path) {
+            continue;
+        }
         items.entry(reference.path.clone()).or_insert_with(|| WorksetFile {
             status: if changed.contains(&reference.path) {
                 "changed".to_string()
@@ -245,30 +254,58 @@ fn build_impact_files(root: &Path, map: &CodeMap, symbol: &str) -> Result<Vec<Wo
         });
     }
 
-    Ok(items.into_values().collect())
+    let mut values = items.into_values().collect::<Vec<_>>();
+    values.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(values)
+}
+
+fn should_skip_workset_path(path: &str) -> bool {
+    let path = path.replace('\\', "/");
+    is_docs(Path::new(&path))
+        || is_codemap(Path::new(&path))
+        || is_test_file(Path::new(&path))
+        || path.ends_with(".snap")
+        || path.ends_with(".css")
+        || path.ends_with(".scss")
+        || path.ends_with("operations.md")
+        || path.ends_with("AMIGO_WORKFLOW.md")
+        || path.contains("/tests/fixtures/")
+        || path.contains("/tests/snapshots/")
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::fs;
     use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::model::{CodeMap, FileEntry, GitChange, GitInfo, SymbolEntry};
 
-    use super::{build_workset, normalize_root};
+    use super::{build_workset, normalize_root, workset_status_report, Workset, WorksetCheck, WorksetFile};
 
     fn sample_map() -> CodeMap {
         CodeMap {
             root_name: "repo".to_string(),
             stats: BTreeMap::new(),
-            files: vec![FileEntry {
-                id: "f1".to_string(),
-                path: PathBuf::from("crates/apps/amigo-editor/src/app/selectionTypes.ts"),
-                language: "ts".to_string(),
-                lines: 10,
-                hash: String::new(),
-                size: 0,
-            }],
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/app/selectionTypes.ts"),
+                    language: "ts".to_string(),
+                    lines: 10,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("README.md"),
+                    language: "md".to_string(),
+                    lines: 4,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
             packages: Vec::new(),
             symbols: vec![SymbolEntry {
                 name: "EditorSelectionRef".to_string(),
@@ -305,8 +342,16 @@ mod tests {
     #[test]
     fn builds_workset_from_impact_symbol() {
         let map = sample_map();
+        let root = temp_root("impact-workset");
+        fs::create_dir_all(root.join("crates/apps/amigo-editor/src/app")).expect("create app dir");
+        fs::write(
+            root.join("crates/apps/amigo-editor/src/app/selectionTypes.ts"),
+            "export type EditorSelectionRef = string;\n",
+        )
+        .expect("write source");
+        fs::write(root.join("README.md"), "EditorSelectionRef in docs\n").expect("write docs");
         let workset = build_workset(
-            PathBuf::from(".").as_path(),
+            root.as_path(),
             &map,
             "selection-migration",
             None,
@@ -316,11 +361,65 @@ mod tests {
         assert_eq!(workset.query, "EditorSelectionRef");
         assert_eq!(workset.symbols, vec!["EditorSelectionRef".to_string()]);
         assert!(workset.files.iter().any(|file| file.reason == "definition"));
+        assert!(!workset.files.iter().any(|file| file.path == "README.md"));
     }
 
     #[test]
     fn normalizes_windows_extended_root() {
         let normalized = normalize_root(PathBuf::from(r"\\?\D:\Git\amigo").as_path());
         assert_eq!(normalized, PathBuf::from(r"D:\Git\amigo"));
+    }
+
+    #[test]
+    fn status_without_file_reports_missing_manifest() {
+        let root = temp_root("missing-workset");
+        let path = root.join(".amigo/worksets/missing.json");
+        let report = workset_status_report("missing", &path).expect("status should render");
+        assert!(report.findings.iter().any(|item| item.contains("missing workset:")));
+        assert!(report.verify.iter().any(|item| item.contains("save workset")));
+    }
+
+    #[test]
+    fn status_with_saved_file_reads_manifest_only() {
+        let root = temp_root("saved-workset");
+        let dir = root.join(".amigo/worksets");
+        fs::create_dir_all(&dir).expect("create workset dir");
+        let path = dir.join("selection.json");
+        let stored = Workset {
+            name: "selection".to_string(),
+            query: "EditorSelectionRef".to_string(),
+            task: Some("migrate".to_string()),
+            git_rev: "abc".to_string(),
+            files: vec![WorksetFile {
+                path: "crates/apps/amigo-editor/src/app/selectionTypes.ts".to_string(),
+                status: "changed".to_string(),
+                reason: "definition".to_string(),
+            }],
+            symbols: vec!["EditorSelectionRef".to_string()],
+            checks: vec![WorksetCheck {
+                command: "npm run build".to_string(),
+                status: "pending".to_string(),
+            }],
+        };
+        fs::write(&path, serde_json::to_vec_pretty(&stored).expect("serialize"))
+            .expect("write workset");
+
+        let report = workset_status_report("selection", &path).expect("status should read");
+        assert!(report.findings.iter().any(|item| item == "files: 1"));
+        assert!(report
+            .findings
+            .iter()
+            .any(|item| item.contains("changed crates/apps/amigo-editor/src/app/selectionTypes.ts")));
+        assert_eq!(report.verify, vec!["npm run build".to_string()]);
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-{name}-{unique}"));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 }

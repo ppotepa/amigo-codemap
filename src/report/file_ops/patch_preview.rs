@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read};
 use std::path::Path;
+use std::fmt::Write as _;
 
 use anyhow::Result;
 
@@ -9,7 +10,7 @@ use crate::report::common::{feature_group, slash_path};
 use crate::report::verify_plan::plan_for_paths;
 
 use super::diff::parse_patch_files;
-use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_patch_preview(
     root: &Path,
@@ -25,7 +26,33 @@ pub fn print_patch_preview(
         text
     };
 
-    let files = parse_patch_files(&text);
+    print!("{}", render_patch_preview_with_source(map, &text, limit, from.is_some()));
+    let _ = root;
+    Ok(())
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn render_patch_preview(map: &CodeMap, input: &str, limit: usize) -> String {
+    render_patch_preview_with_source(map, input, limit, true)
+}
+
+fn render_patch_preview_with_source(
+    map: &CodeMap,
+    input: &str,
+    limit: usize,
+    from_file: bool,
+) -> String {
+    let report = build_patch_preview_report(map, input, limit, from_file);
+    render_report(&report)
+}
+
+fn build_patch_preview_report(
+    map: &CodeMap,
+    input: &str,
+    limit: usize,
+    from_file: bool,
+) -> FileOpReport {
+    let files = parse_patch_files(input);
     let touched = files
         .iter()
         .map(|file| std::path::PathBuf::from(&file.new_path))
@@ -37,7 +64,7 @@ pub fn print_patch_preview(
 
     for file in files.iter().take(limit) {
         *area_counts
-            .entry(feature_group(&file.new_path))
+            .entry(patch_area(&file.new_path))
             .or_default() += 1;
 
         if let Some(entry) = map
@@ -45,10 +72,20 @@ pub fn print_patch_preview(
             .iter()
             .find(|candidate| slash_path(&candidate.path) == file.new_path)
         {
-            for symbol in map.symbols.iter().filter(|symbol| symbol.file_id == entry.id) {
-                if file.added_lines.iter().any(|line| *line >= symbol.line) {
+            let file_symbols = map
+                .symbols
+                .iter()
+                .filter(|symbol| symbol.file_id == entry.id)
+                .collect::<Vec<_>>();
+            for added_line in &file.added_lines {
+                if let Some(symbol) = nearest_symbol(&file_symbols, *added_line) {
                     symbols.insert(symbol.name.clone());
                 }
+            }
+        }
+        if file.old_path != file.new_path {
+            if let Some(rename) = format_rename(&file.old_path, &file.new_path) {
+                symbols.insert(rename);
             }
         }
     }
@@ -94,11 +131,11 @@ pub fn print_patch_preview(
         });
     }
 
-    super::model::print_report(&FileOpReport {
+    FileOpReport {
         task: "patch-preview".to_string(),
         scope: vec![format!(
             "files: {}",
-            if from.is_some() { "from file" } else { "stdin" }
+            if from_file { "from file" } else { "stdin" }
         )],
         findings,
         risks,
@@ -114,8 +151,119 @@ pub fn print_patch_preview(
                 label: "run fallout on build output".to_string(),
             },
         ],
-    });
+    }
+}
 
-    let _ = root;
-    Ok(())
+fn nearest_symbol<'a>(
+    symbols: &[&'a crate::model::SymbolEntry],
+    line: usize,
+) -> Option<&'a crate::model::SymbolEntry> {
+    symbols
+        .iter()
+        .copied()
+        .filter(|symbol| symbol.line <= line)
+        .max_by_key(|symbol| symbol.line)
+        .or_else(|| symbols.iter().copied().min_by_key(|symbol| symbol.line))
+}
+
+fn patch_area(path: &str) -> String {
+    let path = path.replace('\\', "/");
+    if path.contains("/app/store/") {
+        "app/store".to_string()
+    } else if path.contains("/main-window/") {
+        "main-window".to_string()
+    } else if path.contains("/properties/") {
+        "properties".to_string()
+    } else if path.contains("/src-tauri/") {
+        "tauri".to_string()
+    } else if path.contains("/amigo-codemap/") {
+        "codemap".to_string()
+    } else if path.ends_with(".md") || path.contains("/docs/") {
+        "docs".to_string()
+    } else {
+        feature_group(&path)
+    }
+}
+
+fn format_rename(old_path: &str, new_path: &str) -> Option<String> {
+    (old_path != new_path).then(|| {
+        let mut line = String::new();
+        write!(line, "rename {} -> {}", old_path, new_path).unwrap();
+        line
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    use crate::model::{CodeMap, FileEntry, GitInfo, SymbolEntry};
+
+    use super::render_patch_preview;
+
+    fn sample_map() -> CodeMap {
+        CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/app/store/editorReducer.ts"),
+                    language: "ts".to_string(),
+                    lines: 40,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 30,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: vec![
+                SymbolEntry {
+                    name: "reducer".to_string(),
+                    kind: "fn".to_string(),
+                    file_id: "f1".to_string(),
+                    line: 10,
+                    visibility: "export".to_string(),
+                },
+                SymbolEntry {
+                    name: "MainEditorWindow".to_string(),
+                    kind: "component".to_string(),
+                    file_id: "f2".to_string(),
+                    line: 5,
+                    visibility: "export".to_string(),
+                },
+            ],
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: true,
+                changed: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn snapshot_patch_preview() {
+        let patch = r#"diff --git a/crates/apps/amigo-editor/src/app/store/editorReducer.ts b/crates/apps/amigo-editor/src/app/store/editorReducer.ts
+@@ -10,0 +11,2 @@
++export const x = 1;
+diff --git a/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx b/crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx
+@@ -4,0 +5,2 @@
++const view = true;
+"#;
+        assert_eq!(
+            render_patch_preview(&sample_map(), patch, 80).trim(),
+            include_str!("../../../tests/snapshots/patch_preview.snap").trim()
+        );
+    }
 }

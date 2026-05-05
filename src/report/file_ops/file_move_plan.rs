@@ -8,7 +8,7 @@ use super::common::{
     slash_path,
 };
 use super::imports::parse_imports;
-use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_file_move_plan(
     root: &Path,
@@ -17,6 +17,18 @@ pub fn print_file_move_plan(
     to: &Path,
     limit: usize,
 ) -> Result<()> {
+    let report = build_file_move_plan_report(root, map, query, to, limit)?;
+    print!("{}", render_report(&report));
+    Ok(())
+}
+
+fn build_file_move_plan_report(
+    root: &Path,
+    map: &CodeMap,
+    query: &str,
+    to: &Path,
+    limit: usize,
+) -> Result<FileOpReport> {
     let from = find_file_by_path(map, query)
         .ok_or_else(|| anyhow::anyhow!("file-move-plan requires a real file path"))?;
     let text = read_text_at_root(root, &from.path)?;
@@ -101,7 +113,7 @@ pub fn print_file_move_plan(
         });
     }
 
-    super::model::print_report(&FileOpReport {
+    Ok(FileOpReport {
         task: format!("file-move-plan {}", query),
         scope: vec![
             format!("from: {}", slash_path(&from.path)),
@@ -122,7 +134,108 @@ pub fn print_file_move_plan(
                 label: "run verify-plan".to_string(),
             },
         ],
-    });
+    })
+}
 
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    use crate::model::{CodeMap, FileEntry, GitInfo};
+
+    use super::build_file_move_plan_report;
+
+    #[test]
+    fn snapshot_file_move_plan() {
+        let root = temp_root("file-move");
+        std::fs::create_dir_all(root.join("crates/apps/amigo-editor/src/assets"))
+            .expect("create assets dir");
+        std::fs::create_dir_all(root.join("crates/apps/amigo-editor/src/features/assets"))
+            .expect("create features assets dir");
+        std::fs::create_dir_all(root.join("crates/apps/amigo-editor/src/api"))
+            .expect("create api dir");
+        std::fs::write(
+            root.join("crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx"),
+            "import { dto } from \"../api/dto\";\nexport const AssetTreePanel = () => null;\n",
+        )
+        .expect("write source file");
+        std::fs::write(
+            root.join("crates/apps/amigo-editor/src/features/assets/AssetBrowserPanel.tsx"),
+            "import { AssetTreePanel } from \"../../assets/AssetTreePanel\";\n",
+        )
+        .expect("write inbound file");
+        std::fs::write(
+            root.join("crates/apps/amigo-editor/src/api/dto.ts"),
+            "export type Dto = string;\n",
+        )
+        .expect("write dto file");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 2,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from(
+                        "crates/apps/amigo-editor/src/features/assets/AssetBrowserPanel.tsx",
+                    ),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f3".to_string(),
+                    path: PathBuf::from("crates/apps/amigo-editor/src/api/dto.ts"),
+                    language: "ts".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: true,
+                changed: Vec::new(),
+            },
+        };
+
+        let report = build_file_move_plan_report(
+            root.as_path(),
+            &map,
+            "crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx",
+            PathBuf::from("crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx")
+                .as_path(),
+            10,
+        )
+        .expect("move plan should build");
+        assert_eq!(
+            crate::report::file_ops::model::render_report(&report).trim(),
+            include_str!("../../../tests/snapshots/file_move_plan.snap").trim()
+        );
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-{name}-{unique}"));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
 }

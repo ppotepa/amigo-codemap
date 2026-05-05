@@ -1,0 +1,20 @@
+task: open-set EditorSelectionRef
+scope:
+  query: EditorSelectionRef
+  task: migrate
+findings:
+  recommended files: 2
+  read first:
+    crates/apps/amigo-editor/src/app/selectionTypes.ts [score 151, definition, refs:1, selection]
+    crates/apps/amigo-editor/src/app/store/editorState.ts [score 56, refs:1, store boundary]
+  skip:
+    README.md
+risk:
+  Medium: definition unchanged; validate usage before editing
+verify:
+  npm run build
+  cargo test -p amigo-editor --lib
+next:
+  1. read first list only
+  2. make the focused change
+  3. run impact again for the edited symbol

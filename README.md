@@ -49,12 +49,12 @@ These commands provide compact operational context for LLM-assisted refactors.
 - `file-move-plan <from> --to <to>` - estimates import fallout and inbound imports.
 - `rename-plan <old> --to <new> [--group feature]` - exact vs partial rename hits.
 - `import-fix-plan [--changed]` - finds missing/stale relative imports.
-- `open-set <symbol> [--task migrate]` - proposes best file-read order.
-- `workset <name> [--save|--status]` - manage long refactor context (manifest).
+- `open-set <symbol> [--task migrate]` - proposes best file-read order and skips low-value docs/fixtures.
+- `workset <name> [--from-impact symbol] [--save|--status]` - manage long refactor context (manifest).
 - `barrel-check <dir>` - checks export barrels and duplicates.
 - `orphan-files <dir>` - finds files without inbound usage.
 - `shim-check [--changed]` - flags tiny files that are probably shims.
-- `large-files [--top N]` - ranking for future split candidates.
+- `large-files [--top N] [--with-split-hints]` - ranking for future split candidates.
 - `asset-file-check <mod>` - checks YAML asset ids and source references.
 - `case-check [--changed]` - catches case-sensitive import collisions.
 - `text-check [--changed]` - line endings/BOM/binary/text quick pass.
@@ -78,9 +78,13 @@ cargo run -p amigo-codemap -- tauri-commands
 cargo run -p amigo-codemap -- diff-scope --changed --limit 80
 cargo run -p amigo-codemap -- open-set EditorSelectionRef --task migrate --limit 12
 cargo run -p amigo-codemap -- file-move-plan crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx --to crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx
+cargo run -p amigo-codemap -- workset selection-migration --from-impact EditorSelectionRef --save
+cargo run -p amigo-codemap -- workset selection-migration --status
+cargo run -p amigo-codemap -- large-files --top 20 --with-split-hints
 cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection --limit 80
 cargo run -p amigo-codemap -- delete-plan crates/apps/amigo-editor/src/main-window/workspacePanels.tsx
 cargo run -p amigo-codemap -- import-fix-plan --changed
+cargo run -p amigo-codemap -- patch-preview --from patch.diff
 cargo run -p amigo-codemap -- commit-files --changed
 cargo run -p amigo-codemap -- commit-summary --changed
 ```

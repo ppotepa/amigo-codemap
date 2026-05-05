@@ -1,0 +1,21 @@
+task: file-move-plan crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx
+scope:
+  from: crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx
+  to: crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx
+  lines: 2
+findings:
+  imports to rewrite:
+    ../api/dto -> ../../api/dto
+  inbound imports to update:
+    crates/apps/amigo-editor/src/features/assets/AssetBrowserPanel.tsx:1 ../../assets/AssetTreePanel -> ./AssetTreePanel
+risk:
+  Medium: relative path depth may change imports
+  Medium: feature boundary imports should be verified
+  Medium: deep relative imports increase rewrite risk
+  Low: inbound imports need synchronized updates
+verify:
+  npm run build
+next:
+  1. move file
+  2. update rewritten and inbound imports
+  3. run verify-plan

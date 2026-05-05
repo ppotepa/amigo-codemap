@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -75,51 +76,58 @@ pub struct FileOpReport {
     pub next: Vec<NextAction>,
 }
 
-pub fn print_report(report: &FileOpReport) {
-    println!("task: {}", report.task);
+pub fn render_report(report: &FileOpReport) -> String {
+    let mut output = String::new();
+    writeln!(output, "task: {}", report.task).unwrap();
 
-    println!("scope:");
+    writeln!(output, "scope:").unwrap();
     if report.scope.is_empty() {
-        println!("  none");
+        writeln!(output, "  none").unwrap();
     } else {
         for item in &report.scope {
-            println!("  {item}");
+            writeln!(output, "  {item}").unwrap();
         }
     }
 
-    println!("findings:");
+    writeln!(output, "findings:").unwrap();
     if report.findings.is_empty() {
-        println!("  none");
+        writeln!(output, "  none").unwrap();
     } else {
         for item in &report.findings {
-            println!("  {item}");
+            writeln!(output, "  {item}").unwrap();
         }
     }
 
-    println!("risk:");
+    writeln!(output, "risk:").unwrap();
     if report.risks.is_empty() {
-        println!("  none");
+        writeln!(output, "  none").unwrap();
     } else {
         for risk in &report.risks {
-            println!("  {:?}: {}", risk.level, risk.message);
+            writeln!(output, "  {:?}: {}", risk.level, risk.message).unwrap();
         }
     }
 
-    println!("verify:");
+    writeln!(output, "verify:").unwrap();
     if report.verify.is_empty() {
-        println!("  none");
+        writeln!(output, "  none").unwrap();
     } else {
         for item in &report.verify {
-            println!("  {item}");
+            writeln!(output, "  {item}").unwrap();
         }
     }
 
-    println!("next:");
+    writeln!(output, "next:").unwrap();
     if report.next.is_empty() {
-        println!("  1. run affected checks");
+        writeln!(output, "  1. run affected checks").unwrap();
     } else {
         for (index, action) in report.next.iter().enumerate() {
-            println!("  {}. {}", index + 1, action.label);
+            writeln!(output, "  {}. {}", index + 1, action.label).unwrap();
         }
     }
+
+    output
+}
+
+pub fn print_report(report: &FileOpReport) {
+    print!("{}", render_report(report));
 }
