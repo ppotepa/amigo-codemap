@@ -185,7 +185,8 @@ pub fn package_prefix(package: &PackageEntry) -> String {
 
 pub fn is_editor_frontend(path: &Path) -> bool {
     let path = slash_path(path);
-    path.starts_with("crates/apps/amigo-editor/src/") && (path.ends_with(".ts") || path.ends_with(".tsx"))
+    path.starts_with("crates/apps/amigo-editor/src/")
+        && (path.ends_with(".ts") || path.ends_with(".tsx"))
 }
 
 pub fn is_editor_tauri(path: &Path) -> bool {
@@ -199,7 +200,10 @@ pub fn is_codemap(path: &Path) -> bool {
 
 pub fn is_docs(path: &Path) -> bool {
     let path = slash_path(path);
-    path.ends_with(".md") || path.ends_with(".txt") || path.starts_with("docs/") || path.contains("/docs/")
+    path.ends_with(".md")
+        || path.ends_with(".txt")
+        || path.starts_with("docs/")
+        || path.contains("/docs/")
 }
 
 pub fn is_rust_source(path: &Path) -> bool {
@@ -207,7 +211,8 @@ pub fn is_rust_source(path: &Path) -> bool {
 }
 
 pub fn is_ts_source(path: &Path) -> bool {
-    path.extension().is_some_and(|ext| ext == "ts" || ext == "tsx")
+    path.extension()
+        .is_some_and(|ext| ext == "ts" || ext == "tsx")
 }
 
 pub fn is_test_file(path: &Path) -> bool {

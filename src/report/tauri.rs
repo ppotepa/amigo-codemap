@@ -57,7 +57,11 @@ pub fn print_tauri_commands(root: &Path, limit: usize) -> Result<()> {
     let mut commands = Vec::new();
     if base.exists() {
         for entry in walk_rs(&base)? {
-            let rel = entry.strip_prefix(root).unwrap_or(&entry).to_string_lossy().replace('\\', "/");
+            let rel = entry
+                .strip_prefix(root)
+                .unwrap_or(&entry)
+                .to_string_lossy()
+                .replace('\\', "/");
             let text = fs::read_to_string(&entry).unwrap_or_default();
             commands.extend(extract_tauri_commands(&rel, &text));
         }
@@ -67,9 +71,18 @@ pub fn print_tauri_commands(root: &Path, limit: usize) -> Result<()> {
     Ok(())
 }
 
-pub fn render_tauri_commands(commands: &[TauriCommand], handler_text: &str, limit: usize) -> String {
-    let registered = extract_generate_handler_entries(handler_text).into_iter().collect::<BTreeSet<_>>();
-    let names = commands.iter().map(|cmd| cmd.name.clone()).collect::<Vec<_>>();
+pub fn render_tauri_commands(
+    commands: &[TauriCommand],
+    handler_text: &str,
+    limit: usize,
+) -> String {
+    let registered = extract_generate_handler_entries(handler_text)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let names = commands
+        .iter()
+        .map(|cmd| cmd.name.clone())
+        .collect::<Vec<_>>();
     let mut seen = BTreeSet::new();
     let duplicates = names
         .iter()
@@ -91,7 +104,12 @@ pub fn render_tauri_commands(commands: &[TauriCommand], handler_text: &str, limi
     writeln!(output, "commands: {}", names.len()).unwrap();
     writeln!(output, "registered: {}", registered.len()).unwrap();
     writeln!(output, "missing registration: {}", missing.len()).unwrap();
-    writeln!(output, "registered without definition: {}", stale_registered.len()).unwrap();
+    writeln!(
+        output,
+        "registered without definition: {}",
+        stale_registered.len()
+    )
+    .unwrap();
     writeln!(output, "duplicates: {}", duplicates.len()).unwrap();
     writeln!(output, "groups:").unwrap();
     let mut groups = BTreeMap::<String, usize>::new();
@@ -192,7 +210,10 @@ fn walk_rs(root: &Path) -> Result<Vec<std::path::PathBuf>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_group, command_target, extract_generate_handler_entries, extract_tauri_commands, render_tauri_commands};
+    use super::{
+        command_group, command_target, extract_generate_handler_entries, extract_tauri_commands,
+        render_tauri_commands,
+    };
 
     #[test]
     fn detects_tauri_command_attribute() {
@@ -202,7 +223,8 @@ mod tests {
 
     #[test]
     fn extracts_generate_handler_entries() {
-        let entries = extract_generate_handler_entries("generate_handler![commands::open_mod, close]");
+        let entries =
+            extract_generate_handler_entries("generate_handler![commands::open_mod, close]");
         assert_eq!(entries, vec!["open_mod", "close"]);
     }
 
@@ -214,12 +236,18 @@ mod tests {
 
     #[test]
     fn maps_reveal_scene_document_to_project_tree() {
-        assert_eq!(command_target("reveal_scene_document"), "commands/project_tree.rs");
+        assert_eq!(
+            command_target("reveal_scene_document"),
+            "commands/project_tree.rs"
+        );
     }
 
     #[test]
     fn maps_open_settings_window_to_windows() {
-        assert_eq!(command_target("open_settings_window"), "commands/windows.rs");
+        assert_eq!(
+            command_target("open_settings_window"),
+            "commands/windows.rs"
+        );
     }
 
     #[test]

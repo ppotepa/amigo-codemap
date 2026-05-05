@@ -18,6 +18,13 @@ pub struct Options {
     pub patterns: Vec<String>,
     pub from: Option<PathBuf>,
     pub by: Option<String>,
+    pub to: Option<PathBuf>,
+    pub symbol: Option<String>,
+    pub task: Option<String>,
+    pub radius: usize,
+    pub top: usize,
+    pub save: bool,
+    pub status: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +52,23 @@ pub enum Command {
     RegistryCheck,
     OperationsSummary,
     CommitSummary,
+    Slice,
+    DiffScope,
+    DeletePlan,
+    FileMovePlan,
+    RenamePlan,
+    ImportFixPlan,
+    OpenSet,
+    Workset,
+    BarrelCheck,
+    OrphanFiles,
+    ShimCheck,
+    LargeFiles,
+    AssetFileCheck,
+    CaseCheck,
+    TextCheck,
+    PatchPreview,
+    CommitFiles,
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +97,13 @@ impl Cli {
         let mut patterns = Vec::new();
         let mut from = None;
         let mut by = None;
+        let mut to = None;
+        let mut symbol = None;
+        let mut task = None;
+        let mut radius = 32usize;
+        let mut top = 20usize;
+        let mut save = false;
+        let mut status = false;
 
         let args = args.into_iter().collect::<Vec<_>>();
         let mut index = 0;
@@ -101,6 +132,23 @@ impl Cli {
                 "registry-check" => command = Some(Command::RegistryCheck),
                 "operations-summary" => command = Some(Command::OperationsSummary),
                 "commit-summary" => command = Some(Command::CommitSummary),
+                "slice" => command = Some(Command::Slice),
+                "diff-scope" => command = Some(Command::DiffScope),
+                "delete-plan" => command = Some(Command::DeletePlan),
+                "file-move-plan" => command = Some(Command::FileMovePlan),
+                "rename-plan" => command = Some(Command::RenamePlan),
+                "import-fix-plan" => command = Some(Command::ImportFixPlan),
+                "open-set" => command = Some(Command::OpenSet),
+                "workset" => command = Some(Command::Workset),
+                "barrel-check" => command = Some(Command::BarrelCheck),
+                "orphan-files" => command = Some(Command::OrphanFiles),
+                "shim-check" => command = Some(Command::ShimCheck),
+                "large-files" => command = Some(Command::LargeFiles),
+                "asset-file-check" => command = Some(Command::AssetFileCheck),
+                "case-check" => command = Some(Command::CaseCheck),
+                "text-check" => command = Some(Command::TextCheck),
+                "patch-preview" => command = Some(Command::PatchPreview),
+                "commit-files" => command = Some(Command::CommitFiles),
                 "explain" | "--help" | "-h" => command = Some(Command::Explain),
                 "--root" => {
                     index += 1;
@@ -142,10 +190,32 @@ impl Cli {
                     index += 1;
                     by = Some(required_value(&args, index, "--by")?);
                 }
+                "--to" => {
+                    index += 1;
+                    to = Some(PathBuf::from(required_value(&args, index, "--to")?));
+                }
+                "--symbol" => {
+                    index += 1;
+                    symbol = Some(required_value(&args, index, "--symbol")?);
+                }
+                "--task" => {
+                    index += 1;
+                    task = Some(required_value(&args, index, "--task")?);
+                }
+                "--radius" => {
+                    index += 1;
+                    radius = required_value(&args, index, "--radius")?.parse::<usize>()?;
+                }
                 "--limit" => {
                     index += 1;
                     limit = required_value(&args, index, "--limit")?.parse::<usize>()?;
                 }
+                "--top" => {
+                    index += 1;
+                    top = required_value(&args, index, "--top")?.parse::<usize>()?;
+                }
+                "--save" => save = true,
+                "--status" => status = true,
                 unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
                 value => match command {
                     Some(
@@ -157,10 +227,19 @@ impl Cli {
                         | Command::MovePlan
                         | Command::Dup
                         | Command::ServiceShape
-                        | Command::RegistryCheck,
-                    )
-                        if query.is_none() =>
-                    {
+                        | Command::RegistryCheck
+                        | Command::Slice
+                        | Command::DeletePlan
+                        | Command::FileMovePlan
+                        | Command::RenamePlan
+                        | Command::OpenSet
+                        | Command::Workset
+                        | Command::BarrelCheck
+                        | Command::OrphanFiles
+                        | Command::AssetFileCheck
+                        | Command::PatchPreview
+                        | Command::CommitFiles,
+                    ) if query.is_none() => {
                         query = Some(value.to_owned());
                     }
                     Some(Command::Verify) => verify_args.push(value.to_owned()),
@@ -190,6 +269,13 @@ impl Cli {
                 patterns,
                 from,
                 by,
+                to,
+                symbol,
+                task,
+                radius,
+                top,
+                save,
+                status,
             },
         })
     }
@@ -197,7 +283,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout input file\n  --by <kind>      move/dup strategy\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch-preview input file\n  --by <kind>      move/dup strategy\n  --to <path>      move target or set workset file\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --save           persist workset\n  --status         show workset status\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -289,7 +375,10 @@ mod tests {
 
         assert_eq!(cli.command, Command::Fallout);
         assert_eq!(
-            cli.options.from.as_ref().map(|path| path.display().to_string()),
+            cli.options
+                .from
+                .as_ref()
+                .map(|path| path.display().to_string()),
             Some("npm-build.log".to_string())
         );
     }
@@ -306,5 +395,39 @@ mod tests {
 
         assert_eq!(cli.command, Command::MovePlan);
         assert_eq!(cli.options.by.as_deref(), Some("tauri-command"));
+    }
+
+    #[test]
+    fn parses_file_ops_flags() {
+        let cli = Cli::parse([
+            "file-move-plan".to_string(),
+            "crates/apps/amigo-editor/src/main.tsx".to_string(),
+            "--to".to_string(),
+            "crates/apps/amigo-editor/src/app/main.tsx".to_string(),
+            "--changed".to_string(),
+            "--radius".to_string(),
+            "42".to_string(),
+            "--top".to_string(),
+            "12".to_string(),
+            "--save".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::FileMovePlan);
+        assert_eq!(
+            cli.options.query.as_deref(),
+            Some("crates/apps/amigo-editor/src/main.tsx")
+        );
+        assert_eq!(cli.options.radius, 42);
+        assert_eq!(cli.options.top, 12);
+        assert!(cli.options.changed_only);
+        assert_eq!(
+            cli.options
+                .to
+                .as_ref()
+                .map(|path| path.display().to_string()),
+            Some("crates/apps/amigo-editor/src/app/main.tsx".to_string())
+        );
+        assert!(cli.options.save);
     }
 }

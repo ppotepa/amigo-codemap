@@ -25,11 +25,30 @@ fn main() -> Result<()> {
         | Command::TauriCommands
         | Command::RegistryCheck
         | Command::OperationsSummary
-        | Command::CommitSummary => {
+        | Command::CommitSummary
+        | Command::Slice
+        | Command::DiffScope
+        | Command::DeletePlan
+        | Command::FileMovePlan
+        | Command::RenamePlan
+        | Command::ImportFixPlan
+        | Command::OpenSet
+        | Command::Workset
+        | Command::BarrelCheck
+        | Command::OrphanFiles
+        | Command::ShimCheck
+        | Command::LargeFiles
+        | Command::AssetFileCheck
+        | Command::CaseCheck
+        | Command::TextCheck
+        | Command::PatchPreview
+        | Command::CommitFiles => {
             cli.options.level = 0;
             cli.options.ai = false;
         }
-        Command::Scope | Command::Refs | Command::Impact | Command::ServiceShape if cli.options.level < 2 => {
+        Command::Scope | Command::Refs | Command::Impact | Command::ServiceShape
+            if cli.options.level < 2 =>
+        {
             cli.options.level = 2;
         }
         _ => {}
@@ -209,6 +228,208 @@ fn main() -> Result<()> {
         Command::CommitSummary => {
             let map = scan::scan_project(&cli.options)?;
             report::summary::print_commit_summary(&map, cli.options.limit);
+        }
+        Command::Slice => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("slice requires a file path"))?;
+            report::file_ops::slice::print_slice(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.symbol.as_deref(),
+                cli.options.radius,
+            )?;
+        }
+        Command::DiffScope => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::diff_scope::print_diff_scope(&map, cli.options.limit);
+        }
+        Command::DeletePlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("delete-plan requires a path"))?;
+            report::file_ops::delete_plan::print_delete_plan(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::FileMovePlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("file-move-plan requires a source file"))?;
+            let to = cli
+                .options
+                .to
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("file-move-plan requires --to"))?;
+            report::file_ops::file_move_plan::print_file_move_plan(
+                &cli.options.root,
+                &map,
+                query,
+                to,
+                cli.options.limit,
+            )?;
+        }
+        Command::RenamePlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let old = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("rename-plan requires old symbol"))?;
+            let new_name = cli.options.to.as_ref().map(|path| {
+                if path.exists() {
+                    path.to_string_lossy().to_string()
+                } else {
+                    path.to_string_lossy().to_string()
+                }
+            });
+            report::file_ops::rename_plan::print_rename_plan(
+                &cli.options.root,
+                &map,
+                old,
+                new_name.as_deref(),
+                cli.options.group.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::ImportFixPlan => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::import_fix_plan::print_import_fix_plan(
+                &cli.options.root,
+                &map,
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
+        }
+        Command::OpenSet => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("open-set requires a query"))?;
+            report::file_ops::open_set::print_open_set(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.task.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::Workset => {
+            let map = scan::scan_project(&cli.options)?;
+            let name = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("workset requires a name"))?;
+            report::file_ops::workset::print_workset(
+                &cli.options.root,
+                &map,
+                name,
+                cli.options.task.as_deref(),
+                cli.options.save,
+                cli.options.status,
+            )?;
+        }
+        Command::BarrelCheck => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("barrel-check requires a path"))?;
+            report::file_ops::barrel_check::print_barrel_check(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::OrphanFiles => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("orphan-files requires a prefix path"))?;
+            report::file_ops::orphan_files::print_orphan_files(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::ShimCheck => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::shim_check::print_shim_check(
+                &cli.options.root,
+                &map,
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
+        }
+        Command::LargeFiles => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::large_files::print_large_files(&map, cli.options.top.max(1));
+        }
+        Command::AssetFileCheck => {
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("asset-file-check requires a query"))?;
+            report::file_ops::asset_file_check::print_asset_file_check(
+                &cli.options.root,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::CaseCheck => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::case_check::print_case_check(
+                &cli.options.root,
+                &map,
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
+        }
+        Command::TextCheck => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::text_check::print_text_check(
+                &cli.options.root,
+                &map,
+                cli.options.changed_only,
+                cli.options.limit,
+            );
+        }
+        Command::PatchPreview => {
+            report::file_ops::patch_preview::print_patch_preview(
+                cli.options.from.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::CommitFiles => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::commit_files::print_commit_files(
+                &cli.options.root,
+                &map,
+                cli.options.changed_only,
+                cli.options.limit,
+            )?;
         }
         Command::Explain => cli::print_help(),
     }

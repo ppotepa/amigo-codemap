@@ -5,12 +5,14 @@ use std::fs;
 use anyhow::Result;
 use regex::Regex;
 
-pub fn print_registry_check(root: &std::path::Path, query: Option<&str>, limit: usize) -> Result<()> {
+pub fn print_registry_check(
+    root: &std::path::Path,
+    query: Option<&str>,
+    limit: usize,
+) -> Result<()> {
     let kind = query.unwrap_or("all");
     let files = match kind {
-        "properties" => vec![
-            "crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx",
-        ],
+        "properties" => vec!["crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx"],
         "components" => vec![
             "crates/apps/amigo-editor/src/editor-components/componentRegistry.tsx",
             "crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx",
@@ -19,9 +21,9 @@ pub fn print_registry_check(root: &std::path::Path, query: Option<&str>, limit: 
             "crates/apps/amigo-editor/src/features/files/fileWorkspaceRules.ts",
             "crates/apps/amigo-editor/src/features/files/fileWorkspaceTypes.ts",
         ],
-        "project-actions" => vec![
-            "crates/apps/amigo-editor/src/features/project/projectNodeActions.ts",
-        ],
+        "project-actions" => {
+            vec!["crates/apps/amigo-editor/src/features/project/projectNodeActions.ts"]
+        }
         _ => vec![
             "crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx",
             "crates/apps/amigo-editor/src/editor-components/componentRegistry.tsx",
@@ -40,7 +42,11 @@ pub fn print_registry_check(root: &std::path::Path, query: Option<&str>, limit: 
     Ok(())
 }
 
-pub fn render_registry_check_from_texts(kind: &str, files: &[(String, String)], limit: usize) -> String {
+pub fn render_registry_check_from_texts(
+    kind: &str,
+    files: &[(String, String)],
+    limit: usize,
+) -> String {
     let mut ids = BTreeMap::<String, Vec<String>>::new();
     let mut placeholders = 0usize;
     for (file, text) in files {
@@ -105,7 +111,9 @@ fn extract_top_level_component_ids(text: &str) -> Vec<String> {
         }
 
         let trimmed = line.trim_start();
-        if (depth == 1 && trimmed.starts_with("id:")) || (depth == 0 && trimmed.starts_with("{ id:")) {
+        if (depth == 1 && trimmed.starts_with("id:"))
+            || (depth == 0 && trimmed.starts_with("{ id:"))
+        {
             if let Some(caps) = id_re.captures(line) {
                 ids.push(caps[1].to_string());
             }
@@ -131,7 +139,10 @@ fn extract_top_level_component_ids(text: &str) -> Vec<String> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{extract_property_panel_ids, extract_top_level_component_ids, render_registry_check_from_texts};
+    use super::{
+        extract_property_panel_ids, extract_top_level_component_ids,
+        render_registry_check_from_texts,
+    };
 
     #[test]
     fn detects_properties_renderers() {

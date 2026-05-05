@@ -8,7 +8,9 @@ use super::common::{feature_group, print_next, sorted_counts, symbols_matching, 
 use super::verify_plan::plan_for_map;
 
 pub fn risk_for(path: &str, line: &str, kind: Option<&str>) -> Option<&'static str> {
-    if matches!(kind, Some("type" | "interface")) && (path.contains("Reducer") || path.contains("Actions") || path.contains("/store/")) {
+    if matches!(kind, Some("type" | "interface"))
+        && (path.contains("Reducer") || path.contains("Actions") || path.contains("/store/"))
+    {
         Some("high: reducer/action compatibility")
     } else if path.contains("src-tauri") || line.contains("generate_handler") {
         Some("high: command registration/API boundary")
@@ -43,12 +45,21 @@ pub fn print_impact(
         println!("  none");
     }
     for symbol in defs.iter().take(limit) {
-        println!("  {} {}:{} {}", symbol.kind, symbol.file_id, symbol.line, symbol.visibility);
+        println!(
+            "  {} {}:{} {}",
+            symbol.kind, symbol.file_id, symbol.line, symbol.visibility
+        );
     }
     println!("refs:");
     println!("  files: {}", refs.len());
-    println!("  changed: {}", refs.iter().filter(|item| item.changed).count());
-    println!("  unchanged: {}", refs.iter().filter(|item| !item.changed).count());
+    println!(
+        "  changed: {}",
+        refs.iter().filter(|item| item.changed).count()
+    );
+    println!(
+        "  unchanged: {}",
+        refs.iter().filter(|item| !item.changed).count()
+    );
 
     let mut counts = BTreeMap::<String, usize>::new();
     for item in &refs {
@@ -61,10 +72,18 @@ pub fn print_impact(
     println!("groups:");
     for (name, count) in sorted_counts(counts).into_iter().take(limit) {
         println!("  {name}: {count} refs");
-        for item in refs.iter().filter(|item| {
-            let key = if group == Some("feature") { feature_group(&item.path) } else { super::common::group_path(std::path::Path::new(&item.path), group) };
-            key == name
-        }).take(8) {
+        for item in refs
+            .iter()
+            .filter(|item| {
+                let key = if group == Some("feature") {
+                    feature_group(&item.path)
+                } else {
+                    super::common::group_path(std::path::Path::new(&item.path), group)
+                };
+                key == name
+            })
+            .take(8)
+        {
             let suffix = if item.changed { " changed" } else { "" };
             println!("    {}{}", item.path, suffix);
             if lines {
@@ -76,7 +95,11 @@ pub fn print_impact(
     }
     let mut risks = refs
         .iter()
-        .flat_map(|item| item.lines.iter().filter_map(|(_, line)| risk_for(&item.path, line, kind)))
+        .flat_map(|item| {
+            item.lines
+                .iter()
+                .filter_map(|(_, line)| risk_for(&item.path, line, kind))
+        })
         .collect::<Vec<_>>();
     risks.sort_unstable();
     risks.dedup();
@@ -92,7 +115,11 @@ pub fn print_impact(
     for cmd in &plan.required {
         println!("  {cmd}");
     }
-    print_next(&["read definitions", "migrate highest-risk groups", "run verify-plan"]);
+    print_next(&[
+        "read definitions",
+        "migrate highest-risk groups",
+        "run verify-plan",
+    ]);
     Ok(())
 }
 

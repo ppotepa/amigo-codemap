@@ -10,6 +10,7 @@ use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 pub mod common;
 pub mod dup;
 pub mod fallout;
+pub mod file_ops;
 pub mod impact;
 pub mod move_plan;
 pub mod registry;

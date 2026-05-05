@@ -31,7 +31,8 @@ pub fn plan_for_paths(paths: impl IntoIterator<Item = std::path::PathBuf>) -> Ve
             plan.frontend = true;
             plan.required.insert("npm test".to_string());
             plan.required.insert("npm run build".to_string());
-            plan.reason.push("TS/TSX changed under amigo-editor".to_string());
+            plan.reason
+                .push("TS/TSX changed under amigo-editor".to_string());
         } else if is_editor_tauri(path) {
             plan.tauri = true;
             plan.required
@@ -46,9 +47,9 @@ pub fn plan_for_paths(paths: impl IntoIterator<Item = std::path::PathBuf>) -> Ve
             plan.reason.push("amigo-codemap source changed".to_string());
         } else if let Some(crate_name) = engine_test_crate(path) {
             plan.engine = true;
-            plan.required
-                .insert(format!("cargo test -p {crate_name}"));
-            plan.reason.push(format!("engine crate changed: {crate_name}"));
+            plan.required.insert(format!("cargo test -p {crate_name}"));
+            plan.reason
+                .push(format!("engine crate changed: {crate_name}"));
         }
     }
 
@@ -61,7 +62,8 @@ pub fn plan_for_paths(paths: impl IntoIterator<Item = std::path::PathBuf>) -> Ve
     }
     plan.skip.insert("full cargo test workspace".to_string());
     if plan.reason.is_empty() {
-        plan.reason.push("no known high-risk path matched".to_string());
+        plan.reason
+            .push("no known high-risk path matched".to_string());
     }
     plan.reason.sort();
     plan.reason.dedup();
@@ -91,7 +93,10 @@ pub fn plan_for_map(map: &CodeMap, changed_only: bool) -> VerifyPlan {
             .map(|change| change.path.clone())
             .collect::<Vec<_>>()
     } else {
-        map.files.iter().map(|file| file.path.clone()).collect::<Vec<_>>()
+        map.files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect::<Vec<_>>()
     };
     plan_for_paths(paths)
 }
@@ -152,7 +157,9 @@ mod tests {
 
     #[test]
     fn plans_editor_cargo_test_for_src_tauri_change() {
-        let plan = plan_for_paths([PathBuf::from("crates/apps/amigo-editor/src-tauri/src/lib.rs")]);
+        let plan = plan_for_paths([PathBuf::from(
+            "crates/apps/amigo-editor/src-tauri/src/lib.rs",
+        )]);
         assert!(plan.required.contains("cargo test -p amigo-editor --lib"));
     }
 

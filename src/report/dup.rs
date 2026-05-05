@@ -18,8 +18,17 @@ pub fn normalize_body(body: &str) -> String {
         .collect()
 }
 
-pub fn print_dup(root: &std::path::Path, map: &CodeMap, query: Option<&str>, changed_only: bool, limit: usize) -> Result<()> {
-    println!("task: dup{}", query.map(|q| format!(" {q}")).unwrap_or_default());
+pub fn print_dup(
+    root: &std::path::Path,
+    map: &CodeMap,
+    query: Option<&str>,
+    changed_only: bool,
+    limit: usize,
+) -> Result<()> {
+    println!(
+        "task: dup{}",
+        query.map(|q| format!(" {q}")).unwrap_or_default()
+    );
     let mut matches = BTreeMap::<String, Vec<String>>::new();
     let files = files_by_id(map);
     let changed = changed_by_path(map);
@@ -53,7 +62,11 @@ pub fn print_dup(root: &std::path::Path, map: &CodeMap, query: Option<&str>, cha
     };
     println!("matches:");
     let mut any = false;
-    for (name, paths) in matches.into_iter().filter(|(_, paths)| paths.len() > 1).take(limit) {
+    for (name, paths) in matches
+        .into_iter()
+        .filter(|(_, paths)| paths.len() > 1)
+        .take(limit)
+    {
         any = true;
         println!("  {name}:");
         for path in paths {
@@ -77,7 +90,11 @@ pub fn print_dup(root: &std::path::Path, map: &CodeMap, query: Option<&str>, cha
     println!("suggest:");
     println!("  canonical: shared module closest to existing callers");
     println!("  visibility: pub(crate)");
-    print_next(&["keep canonical implementation", "delete local copies", "run verify-plan"]);
+    print_next(&[
+        "keep canonical implementation",
+        "delete local copies",
+        "run verify-plan",
+    ]);
     Ok(())
 }
 
@@ -88,7 +105,9 @@ fn duplicate_bodies(
     limit: usize,
 ) -> Result<BTreeMap<String, Vec<String>>> {
     let changed = changed_by_path(map);
-    let re = Regex::new(r"(?s)\b(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)\s*\([^)]*\)\s*(?:->[^{]+)?\{(?P<body>.*?)\n\}")?;
+    let re = Regex::new(
+        r"(?s)\b(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)\s*\([^)]*\)\s*(?:->[^{]+)?\{(?P<body>.*?)\n\}",
+    )?;
     let mut by_body = BTreeMap::<String, Vec<String>>::new();
     for file in &map.files {
         let path = slash_path(&file.path);
@@ -103,7 +122,10 @@ fn duplicate_bodies(
             if body.len() < 12 {
                 continue;
             }
-            by_body.entry(body).or_default().push(format!("{} {}", path, &caps[1]));
+            by_body
+                .entry(body)
+                .or_default()
+                .push(format!("{} {}", path, &caps[1]));
         }
     }
     Ok(by_body

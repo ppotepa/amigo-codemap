@@ -15,7 +15,10 @@ pub struct BuildError {
 }
 
 pub fn parse_fallout(input: &str) -> Vec<BuildError> {
-    let ts = Regex::new(r"(?:(?P<file>[^()\s]+\.(?:ts|tsx))\(\d+,\d+\):\s*)?error (?P<code>TS\d+): (?P<msg>.+)").unwrap();
+    let ts = Regex::new(
+        r"(?:(?P<file>[^()\s]+\.(?:ts|tsx))\(\d+,\d+\):\s*)?error (?P<code>TS\d+): (?P<msg>.+)",
+    )
+    .unwrap();
     let rust = Regex::new(r"error\[(?P<code>E\d+)\]: (?P<msg>.+)").unwrap();
     let loc = Regex::new(r"-->\s+(?P<file>[^:]+):\d+:\d+").unwrap();
     let mut pending_rust: Option<BuildError> = None;
@@ -78,7 +81,9 @@ pub fn render_fallout(input: &str, limit: usize) -> String {
     let mut files = BTreeMap::new();
     for error in &errors {
         *kinds.entry(error.kind.clone()).or_default() += 1;
-        *files.entry(error.file.clone().unwrap_or_else(|| "unknown".to_string())).or_default() += 1;
+        *files
+            .entry(error.file.clone().unwrap_or_else(|| "unknown".to_string()))
+            .or_default() += 1;
     }
     writeln!(output, "groups:").unwrap();
     for (kind, count) in sorted_counts(kinds).into_iter().take(limit) {
@@ -99,9 +104,15 @@ pub fn render_fallout(input: &str, limit: usize) -> String {
 fn likely_cause(file: &str, errors: &[BuildError]) -> &'static str {
     if file.contains("commands/mod.rs") {
         "missing re-export after split"
-    } else if errors.iter().any(|e| e.message.contains("WorkspaceRuntimeServices")) {
+    } else if errors
+        .iter()
+        .any(|e| e.message.contains("WorkspaceRuntimeServices"))
+    {
         "service-shape mismatch"
-    } else if errors.iter().any(|e| e.message.contains("EditorSelectionRef")) {
+    } else if errors
+        .iter()
+        .any(|e| e.message.contains("EditorSelectionRef"))
+    {
         "selection migration fallout"
     } else {
         "inspect local compile error"
@@ -125,19 +136,26 @@ mod tests {
 
     #[test]
     fn fixture_parses_tsc_missing_import() {
-        let errors = parse_fallout(include_str!("../../tests/fixtures/fallout/tsc_missing_import.txt"));
+        let errors = parse_fallout(include_str!(
+            "../../tests/fixtures/fallout/tsc_missing_import.txt"
+        ));
         assert_eq!(errors.len(), 2);
         assert_eq!(errors[0].kind, "missing export/import");
         assert_eq!(
             errors[0].file.as_deref(),
             Some("src/main-window/MainEditorWindow.tsx")
         );
-        assert_eq!(likely_cause("src/main-window/MainEditorWindow.tsx", &errors), "service-shape mismatch");
+        assert_eq!(
+            likely_cause("src/main-window/MainEditorWindow.tsx", &errors),
+            "service-shape mismatch"
+        );
     }
 
     #[test]
     fn fixture_parses_cargo_unresolved_import() {
-        let errors = parse_fallout(include_str!("../../tests/fixtures/fallout/cargo_unresolved_import.txt"));
+        let errors = parse_fallout(include_str!(
+            "../../tests/fixtures/fallout/cargo_unresolved_import.txt"
+        ));
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].kind, "unresolved import");
         assert_eq!(
@@ -145,17 +163,34 @@ mod tests {
             Some("crates/apps/amigo-editor/src-tauri/src/commands/mod.rs")
         );
         assert_eq!(
-            likely_cause("crates/apps/amigo-editor/src-tauri/src/commands/mod.rs", &errors),
+            likely_cause(
+                "crates/apps/amigo-editor/src-tauri/src/commands/mod.rs",
+                &errors
+            ),
             "missing re-export after split"
         );
     }
 
     #[test]
     fn fixture_parses_mixed_build_log() {
-        let errors = parse_fallout(include_str!("../../tests/fixtures/fallout/mixed_build_log.txt"));
+        let errors = parse_fallout(include_str!(
+            "../../tests/fixtures/fallout/mixed_build_log.txt"
+        ));
         assert_eq!(errors.len(), 3);
-        assert_eq!(errors.iter().filter(|error| error.kind == "missing property").count(), 1);
-        assert_eq!(errors.iter().filter(|error| error.kind == "visibility").count(), 1);
+        assert_eq!(
+            errors
+                .iter()
+                .filter(|error| error.kind == "missing property")
+                .count(),
+            1
+        );
+        assert_eq!(
+            errors
+                .iter()
+                .filter(|error| error.kind == "visibility")
+                .count(),
+            1
+        );
     }
 
     #[test]

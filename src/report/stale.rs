@@ -32,9 +32,10 @@ pub fn print_stale(
         let defs = symbols_matching(map, pattern);
         let mut refs = text_refs(root, map, pattern, limit)?;
         refs.retain(|item| {
-            !defs
-                .iter()
-                .any(|symbol| symbol.file_id == item.file_id && item.lines.iter().any(|(line, _)| *line == symbol.line))
+            !defs.iter().any(|symbol| {
+                symbol.file_id == item.file_id
+                    && item.lines.iter().any(|(line, _)| *line == symbol.line)
+            })
         });
         if changed_only {
             refs.retain(|item| item.changed);
@@ -49,7 +50,10 @@ pub fn print_stale(
         println!();
         println!("{pattern}:");
         println!("  refs: {}", refs.len());
-        println!("  definition: {}", if defs.is_empty() { "none" } else { "yes" });
+        println!(
+            "  definition: {}",
+            if defs.is_empty() { "none" } else { "yes" }
+        );
         if !refs.is_empty() {
             println!("  files:");
             for item in refs.iter().take(limit) {
@@ -64,7 +68,11 @@ pub fn print_stale(
     println!("  clean: {clean}");
     println!("  inspect: {inspect}");
     println!("  blocked: {blocked}");
-    print_next(&["remove clean leftovers", "inspect unchanged references", "rerun stale after cleanup"]);
+    print_next(&[
+        "remove clean leftovers",
+        "inspect unchanged references",
+        "rerun stale after cleanup",
+    ]);
     Ok(())
 }
 

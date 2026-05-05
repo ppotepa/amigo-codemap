@@ -18,7 +18,10 @@ pub enum FieldUsageClass {
 }
 
 pub fn extract_ts_fields(text: &str, type_name: &str) -> Vec<String> {
-    let Some(start) = text.find(&format!("interface {type_name}")).or_else(|| text.find(&format!("type {type_name}"))) else {
+    let Some(start) = text
+        .find(&format!("interface {type_name}"))
+        .or_else(|| text.find(&format!("type {type_name}")))
+    else {
         return Vec::new();
     };
     let rest = &text[start..];
@@ -48,7 +51,12 @@ pub fn extract_ts_fields(text: &str, type_name: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn print_service_shape(root: &std::path::Path, map: &CodeMap, query: &str, limit: usize) -> Result<()> {
+pub fn print_service_shape(
+    root: &std::path::Path,
+    map: &CodeMap,
+    query: &str,
+    limit: usize,
+) -> Result<()> {
     if query.is_empty() {
         bail!("service-shape requires a type/interface name");
     }
@@ -63,7 +71,11 @@ pub fn print_service_shape(root: &std::path::Path, map: &CodeMap, query: &str, l
     }
     if fields.is_empty() {
         for file in &map.files {
-            if !(file.path.extension().is_some_and(|ext| ext == "ts" || ext == "tsx")) {
+            if !(file
+                .path
+                .extension()
+                .is_some_and(|ext| ext == "ts" || ext == "tsx"))
+            {
                 continue;
             }
             let text = fs::read_to_string(root.join(&file.path)).unwrap_or_default();
@@ -90,19 +102,36 @@ pub fn print_service_shape(root: &std::path::Path, map: &CodeMap, query: &str, l
                     && (item.path.ends_with(".ts") || item.path.ends_with(".tsx"))
             })
             .filter(|item| {
-                definition_file_id != Some(item.file_id.as_str()) && item.lines.iter().any(|(_, line)| is_likely_field_usage(line, field))
+                definition_file_id != Some(item.file_id.as_str())
+                    && item
+                        .lines
+                        .iter()
+                        .any(|(_, line)| is_likely_field_usage(line, field))
             })
             .collect::<Vec<_>>();
-        let mut features = refs.iter().map(|item| feature_group(&item.path)).collect::<Vec<_>>();
+        let mut features = refs
+            .iter()
+            .map(|item| feature_group(&item.path))
+            .collect::<Vec<_>>();
         features.sort();
         features.dedup();
         let class = classify_field_usage(&features);
         println!("  {field}:");
         println!("    files: {}", refs.len());
-        println!("    feature: {}", if features.is_empty() { "unused".to_string() } else { features.join(", ") });
+        println!(
+            "    feature: {}",
+            if features.is_empty() {
+                "unused".to_string()
+            } else {
+                features.join(", ")
+            }
+        );
         println!("    class: {}", class_name(class));
         if features.len() == 1 {
-            candidates.entry(features[0].clone()).or_default().push(field.clone());
+            candidates
+                .entry(features[0].clone())
+                .or_default()
+                .push(field.clone());
         }
     }
     println!("candidates:");
@@ -112,7 +141,11 @@ pub fn print_service_shape(root: &std::path::Path, map: &CodeMap, query: &str, l
     println!("risk:");
     println!("  high: prop drilling through ComponentHost");
     println!("  medium: inspector/properties bridge");
-    print_next(&["remove unused fields", "split one-feature fields", "run npm run build"]);
+    print_next(&[
+        "remove unused fields",
+        "split one-feature fields",
+        "run npm run build",
+    ]);
     Ok(())
 }
 
@@ -147,11 +180,14 @@ fn class_name(class: FieldUsageClass) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_field_usage, extract_ts_fields, is_likely_field_usage, FieldUsageClass};
+    use super::{FieldUsageClass, classify_field_usage, extract_ts_fields, is_likely_field_usage};
 
     #[test]
     fn extracts_ts_interface_fields() {
-        assert_eq!(extract_ts_fields("interface X {\n a: string\n b?: number\n}", "X"), vec!["a", "b"]);
+        assert_eq!(
+            extract_ts_fields("interface X {\n a: string\n b?: number\n}", "X"),
+            vec!["a", "b"]
+        );
     }
 
     #[test]
@@ -165,6 +201,9 @@ mod tests {
     #[test]
     fn detects_likely_field_usage() {
         assert!(is_likely_field_usage("services.details", "details"));
-        assert!(!is_likely_field_usage("details: EditorModDetailsDto", "details"));
+        assert!(!is_likely_field_usage(
+            "details: EditorModDetailsDto",
+            "details"
+        ));
     }
 }

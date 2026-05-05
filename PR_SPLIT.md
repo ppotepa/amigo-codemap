@@ -1,5 +1,11 @@
 # amigo-codemap PR split plan
 
+`PR split` = dzielenie zmian na mniejsze pull requesty/komentarze po jednym zakresie, żeby:
+
+- zmniejszyć ryzyko regresji,
+- łatwiej robić review,
+- szybciej przywracać działające kawałki, jeśli coś pójdzie nie tak.
+
 Recommended review split for the refactor-report work:
 
 1. `refactor(codemap): split report module`
@@ -31,7 +37,26 @@ Recommended review split for the refactor-report work:
    - Add `operations-summary`.
    - Add `commit-summary`.
 
-7. `docs(codemap): document refactor reports`
+7. `feat(codemap): add file-ops foundation`
+   - Add `file_ops/` module and CLI wiring.
+   - Add shared file-ops structures and command parser flags.
+
+8. `feat(codemap): add file-ops context tools`
+   - Add `slice`, `diff-scope`, `open-set`, `large-files`.
+
+9. `feat(codemap): add file-ops cleanup tools`
+   - Add `delete-plan`, `file-move-plan`, `rename-plan`, `import-fix-plan`, `orphan-files`, `shim-check`, `barrel-check`, `case-check`, `text-check`, `asset-file-check`.
+
+10. `feat(codemap): add patch/commit utilities`
+   - Add `patch-preview`, `commit-files`, `workset`.
+
+11. `feat(codemap): refine command grouping`
+   - Align move/tauri command targets and registry/snapshot/fixtures coverage.
+
+12. `docs(codemap): document refactor reports`
    - Update CLI help.
    - Update README examples.
    - Keep smoke commands documented.
+
+Jeżeli potrzebujesz maksymalnie małych zmian, każdy punkt można podzielić na mniejsze PR-y
+(np. jedno wejście na każdą nową komendę), ale powyższa kolejność to dobry punkt startu.

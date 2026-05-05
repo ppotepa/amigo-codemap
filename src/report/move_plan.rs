@@ -11,7 +11,12 @@ pub fn command_target(name: &str) -> &'static str {
     super::tauri::command_target(name)
 }
 
-pub fn print_move_plan(root: &std::path::Path, query: &str, by: Option<&str>, limit: usize) -> Result<()> {
+pub fn print_move_plan(
+    root: &std::path::Path,
+    query: &str,
+    by: Option<&str>,
+    limit: usize,
+) -> Result<()> {
     if query.is_empty() {
         bail!("move-plan requires a file or symbol");
     }
@@ -32,12 +37,19 @@ pub fn print_move_plan(root: &std::path::Path, query: &str, by: Option<&str>, li
             }
             println!("groups:");
             for (target, symbols) in groups.into_iter().take(limit) {
-                println!("  {}:", target.trim_start_matches("commands/").trim_end_matches(".rs"));
+                println!(
+                    "  {}:",
+                    target
+                        .trim_start_matches("commands/")
+                        .trim_end_matches(".rs")
+                );
                 println!("    symbols: {}", symbols.join(", "));
                 println!("    target: {target}");
             }
         } else {
-            let re = Regex::new(r"\bexport\s+(?:function|const|type|interface|class)\s+([A-Za-z0-9_]+)").unwrap();
+            let re =
+                Regex::new(r"\bexport\s+(?:function|const|type|interface|class)\s+([A-Za-z0-9_]+)")
+                    .unwrap();
             let mut groups = BTreeMap::<&str, Vec<String>>::new();
             for caps in re.captures_iter(&text) {
                 let name = caps[1].to_string();
@@ -68,7 +80,11 @@ pub fn print_move_plan(root: &std::path::Path, query: &str, by: Option<&str>, li
     println!("risk:");
     println!("  high: registration/import fallout");
     println!("  medium: helper visibility");
-    print_next(&["move shared helpers first", "move grouped symbols", "run verify-plan"]);
+    print_next(&[
+        "move shared helpers first",
+        "move grouped symbols",
+        "run verify-plan",
+    ]);
     Ok(())
 }
 
@@ -79,7 +95,10 @@ mod tests {
 
     #[test]
     fn move_plan_suggests_target_modules() {
-        assert_eq!(command_target("get_project_tree"), "commands/project_tree.rs");
+        assert_eq!(
+            command_target("get_project_tree"),
+            "commands/project_tree.rs"
+        );
     }
 
     #[test]
@@ -99,12 +118,18 @@ mod tests {
 
     #[test]
     fn maps_reveal_scene_document_to_project_tree() {
-        assert_eq!(command_target("reveal_scene_document"), "commands/project_tree.rs");
+        assert_eq!(
+            command_target("reveal_scene_document"),
+            "commands/project_tree.rs"
+        );
     }
 
     #[test]
     fn maps_open_settings_window_to_windows() {
-        assert_eq!(command_target("open_settings_window"), "commands/windows.rs");
+        assert_eq!(
+            command_target("open_settings_window"),
+            "commands/windows.rs"
+        );
     }
 
     #[test]
