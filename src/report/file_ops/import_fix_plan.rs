@@ -10,7 +10,7 @@ use super::common::{
     resolve_relative_import, slash_path,
 };
 use super::imports::parse_ts_imports;
-use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
 
 pub fn print_import_fix_plan(
     root: &Path,
@@ -18,6 +18,17 @@ pub fn print_import_fix_plan(
     changed_only: bool,
     limit: usize,
 ) -> Result<()> {
+    let report = build_import_fix_report(root, map, changed_only, limit)?;
+    print!("{}", render_report(&report));
+    Ok(())
+}
+
+fn build_import_fix_report(
+    root: &Path,
+    map: &CodeMap,
+    changed_only: bool,
+    limit: usize,
+) -> Result<FileOpReport> {
     let changed_ids = changed_by_path(map);
     let changed_statuses = changed_status_by_path(map);
     let mut broken = Vec::new();
@@ -115,7 +126,7 @@ pub fn print_import_fix_plan(
         },
     ];
 
-    super::model::print_report(&FileOpReport {
+    Ok(FileOpReport {
         task: "import-fix-plan".to_string(),
         scope: vec![format!(
             "files scanned: {}",
@@ -135,9 +146,7 @@ pub fn print_import_fix_plan(
                 label: "rerun build and fallout".to_string(),
             },
         ],
-    });
-
-    Ok(())
+    })
 }
 
 fn guess_candidate(map: &CodeMap, specifier: &str) -> Option<String> {
@@ -238,7 +247,9 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
-    use super::is_deleted_relative_target;
+    use crate::model::{CodeMap, FileEntry, GitChange, GitInfo};
+
+    use super::{build_import_fix_report, is_deleted_relative_target};
 
     #[test]
     fn detects_deleted_relative_target() {
@@ -268,5 +279,85 @@ mod tests {
             &source_file,
             "../b",
         ));
+    }
+
+    #[test]
+    fn reports_deleted_and_missing_imports_with_candidate() {
+        let root = temp_root("import-fix");
+        std::fs::create_dir_all(root.join("src/app")).expect("create app dir");
+        std::fs::create_dir_all(root.join("src/features")).expect("create features dir");
+        std::fs::write(
+            root.join("src/app/MainEditorWindow.tsx"),
+            "import { Panels } from \"./workspacePanels\";\nimport { Next } from \"./SelectionPanel\";\n",
+        )
+        .expect("write source");
+        std::fs::write(
+            root.join("src/features/SelectionPanel.tsx"),
+            "export const SelectionPanel = () => null;\n",
+        )
+        .expect("write candidate");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("src/app/MainEditorWindow.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 2,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("src/features/SelectionPanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: true,
+                changed: vec![
+                    GitChange {
+                        status: "M".to_string(),
+                        path: PathBuf::from("src/app/MainEditorWindow.tsx"),
+                        file_id: Some("f1".to_string()),
+                    },
+                    GitChange {
+                        status: "D".to_string(),
+                        path: PathBuf::from("src/app/workspacePanels.tsx"),
+                        file_id: None,
+                    },
+                ],
+            },
+        };
+
+        let report = build_import_fix_report(root.as_path(), &map, true, 20)
+            .expect("import fix report should build");
+        let rendered = crate::report::file_ops::model::render_report(&report);
+        assert!(rendered.contains("stale imports:"));
+        assert!(rendered.contains("./workspacePanels"));
+        assert!(rendered.contains("broken imports:"));
+        assert!(rendered.contains("./SelectionPanel"));
+        assert!(rendered.contains("candidate: src/features/SelectionPanel.tsx"));
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-{name}-{unique}"));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 }

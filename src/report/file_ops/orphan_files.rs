@@ -17,6 +17,7 @@ pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize)
     let mut not_orphan = Vec::new();
 
     let inbound_counts = inbound_counts(map);
+    let repo_text_refs = build_textual_ref_counts(root, map);
 
     for file in &map.files {
         let path = slash_path(&file.path);
@@ -33,7 +34,10 @@ pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize)
             .file_stem()
             .map(|stem| stem.to_string_lossy().to_string())
             .unwrap_or_default();
-        let path_refs = textual_path_refs(map, &path, &basename);
+        let path_refs = repo_text_refs
+            .get(&path)
+            .copied()
+            .unwrap_or_else(|| textual_path_refs(root, map, &path, &basename));
         let inbound = inbound_counts.get(&file.id).copied().unwrap_or(0) + path_refs;
 
         if inbound == 0 {
@@ -104,16 +108,43 @@ fn inbound_counts(map: &CodeMap) -> BTreeMap<String, usize> {
     counts
 }
 
-fn textual_path_refs(map: &CodeMap, path: &str, basename: &str) -> usize {
-    let normalized = path.replace('\\', "/");
-    let mut refs = 0usize;
-
-    for change in &map.git.changed {
-        let changed = slash_path(&change.path);
-        if changed == normalized {
+fn build_textual_ref_counts(root: &Path, map: &CodeMap) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for file in &map.files {
+        let path = slash_path(&file.path);
+        if is_entry_point(&path) {
             continue;
         }
-        if changed.contains(basename) {
+        let basename = file
+            .path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let count = textual_path_refs(root, map, &path, &basename);
+        counts.insert(path, count);
+    }
+    counts
+}
+
+fn textual_path_refs(root: &Path, map: &CodeMap, path: &str, basename: &str) -> usize {
+    let normalized = path.replace('\\', "/");
+    let filename = Path::new(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let mut refs = 0usize;
+
+    for other in &map.files {
+        let other_path = slash_path(&other.path);
+        if other_path == normalized {
+            continue;
+        }
+
+        let text = read_text_at_root(root, &other.path).unwrap_or_default();
+        if text.contains(basename)
+            || (!filename.is_empty() && text.contains(&filename))
+            || text.contains(path)
+        {
             refs += 1;
         }
     }
@@ -160,7 +191,12 @@ fn classify_shim(text: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_shim, is_entry_point};
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    use crate::model::{CodeMap, DependencyEntry, FileEntry, GitInfo};
+
+    use super::{classify_shim, inbound_counts, is_entry_point, textual_path_refs};
 
     #[test]
     fn ignores_entrypoints() {
@@ -175,5 +211,97 @@ mod tests {
             classify_shim(r#"export { Thing } from "./thing";"#),
             Some("re-export/mod shim")
         );
+    }
+
+    #[test]
+    fn counts_dependency_inbound_refs() {
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: Vec::new(),
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: vec![DependencyEntry {
+                from: "a".to_string(),
+                to: "b".to_string(),
+                kind: "imports".to_string(),
+            }],
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: false,
+                changed: Vec::new(),
+            },
+        };
+        let counts = inbound_counts(&map);
+        assert_eq!(counts.get("b"), Some(&1));
+    }
+
+    #[test]
+    fn finds_textual_refs_outside_git_changes() {
+        let root = temp_root("orphan");
+        std::fs::create_dir_all(root.join("src/features/assets")).expect("create dirs");
+        std::fs::write(
+            root.join("src/features/assets/AssetTreePanel.tsx"),
+            "export const AssetTreePanel = () => null;\n",
+        )
+        .expect("write panel");
+        std::fs::write(
+            root.join("src/features/assets/AssetBrowserPanel.tsx"),
+            "import { AssetTreePanel } from \"./AssetTreePanel\";\n",
+        )
+        .expect("write browser");
+
+        let map = CodeMap {
+            root_name: "repo".to_string(),
+            stats: BTreeMap::new(),
+            files: vec![
+                FileEntry {
+                    id: "f1".to_string(),
+                    path: PathBuf::from("src/features/assets/AssetTreePanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+                FileEntry {
+                    id: "f2".to_string(),
+                    path: PathBuf::from("src/features/assets/AssetBrowserPanel.tsx"),
+                    language: "tsx".to_string(),
+                    lines: 1,
+                    hash: String::new(),
+                    size: 0,
+                },
+            ],
+            packages: Vec::new(),
+            symbols: Vec::new(),
+            dependencies: Vec::new(),
+            areas: Vec::new(),
+            git: GitInfo {
+                branch: "main".to_string(),
+                rev: "abc".to_string(),
+                dirty: false,
+                changed: Vec::new(),
+            },
+        };
+
+        let refs = textual_path_refs(
+            root.as_path(),
+            &map,
+            "src/features/assets/AssetTreePanel.tsx",
+            "AssetTreePanel",
+        );
+        assert_eq!(refs, 1);
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-{name}-{unique}"));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 }
