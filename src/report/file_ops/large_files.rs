@@ -41,7 +41,10 @@ pub fn print_large_files(map: &CodeMap, top: usize, with_split_hints: bool) {
         findings.push(format!("  {path}"));
         findings.push(format!("    lines: {}", file.lines));
         findings.push(format!("    symbols: {symbol_count}"));
-        findings.push(format!("    changed: {}", if is_changed { "yes" } else { "no" }));
+        findings.push(format!(
+            "    changed: {}",
+            if is_changed { "yes" } else { "no" }
+        ));
         if with_split_hints {
             findings.push(format!("    split hints: {}", split_hint(&path)));
         }
@@ -93,7 +96,10 @@ fn split_score(
     if is_changed {
         score += 75;
     }
-    if path.contains("/commands/") || path.contains("ProjectExplorer") || path.contains("builtinComponents") {
+    if path.contains("/commands/")
+        || path.contains("ProjectExplorer")
+        || path.contains("builtinComponents")
+    {
         score += 100;
     }
     if path.ends_with(".css") {
@@ -124,17 +130,38 @@ mod tests {
 
     #[test]
     fn filters_generated_and_lockfiles() {
-        assert!(!is_rankable_file("crates/apps/amigo-editor/package-lock.json"));
-        assert!(!is_rankable_file("crates/apps/amigo-editor/src-tauri/gen/schemas/x.json"));
-        assert!(is_rankable_file("crates/apps/amigo-editor/src/app/store/editorState.ts"));
+        assert!(!is_rankable_file(
+            "crates/apps/amigo-editor/package-lock.json"
+        ));
+        assert!(!is_rankable_file(
+            "crates/apps/amigo-editor/src-tauri/gen/schemas/x.json"
+        ));
+        assert!(is_rankable_file(
+            "crates/apps/amigo-editor/src/app/store/editorState.ts"
+        ));
     }
 
     #[test]
     fn maps_split_hints() {
-        assert_eq!(split_hint("src-tauri/src/commands/mod.rs"), "command domain");
-        assert_eq!(split_hint("src/features/project/ProjectExplorerPanel.tsx"), "tree/actions/node strip");
-        assert_eq!(split_hint("src/editor-components/builtinComponents.tsx"), "registry/panels");
-        assert_eq!(split_hint("src-tauri/src/sheet/loader.rs"), "dto/loading/validation/errors");
-        assert_eq!(split_hint("src-tauri/src/asset_registry/scanner.rs"), "scan/graph/io");
+        assert_eq!(
+            split_hint("src-tauri/src/commands/mod.rs"),
+            "command domain"
+        );
+        assert_eq!(
+            split_hint("src/features/project/ProjectExplorerPanel.tsx"),
+            "tree/actions/node strip"
+        );
+        assert_eq!(
+            split_hint("src/editor-components/builtinComponents.tsx"),
+            "registry/panels"
+        );
+        assert_eq!(
+            split_hint("src-tauri/src/sheet/loader.rs"),
+            "dto/loading/validation/errors"
+        );
+        assert_eq!(
+            split_hint("src-tauri/src/asset_registry/scanner.rs"),
+            "scan/graph/io"
+        );
     }
 }

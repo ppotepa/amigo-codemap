@@ -8,7 +8,7 @@ use super::common::{
     slash_path,
 };
 use super::imports::parse_imports;
-use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
 pub fn print_file_move_plan(
     root: &Path,
@@ -47,7 +47,10 @@ fn build_file_move_plan_report(
     findings.push("imports to rewrite:".to_string());
     let mut rewrite_count = 0usize;
 
-    for import in imports.iter().filter(|item| item.specifier.starts_with('.')) {
+    for import in imports
+        .iter()
+        .filter(|item| item.specifier.starts_with('.'))
+    {
         if rewrite_count >= limit {
             break;
         }

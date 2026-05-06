@@ -7,7 +7,7 @@ use crate::model::CodeMap;
 use crate::report::common::slash_path;
 
 use super::common::read_text_at_root;
-use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
 pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<()> {
     let report = build_orphan_report(root, map, query, limit)?;
@@ -16,12 +16,22 @@ pub fn print_orphan_files(root: &Path, map: &CodeMap, query: &str, limit: usize)
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn render_orphan_report(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<String> {
+pub fn render_orphan_report(
+    root: &Path,
+    map: &CodeMap,
+    query: &str,
+    limit: usize,
+) -> Result<String> {
     let report = build_orphan_report(root, map, query, limit)?;
     Ok(render_report(&report))
 }
 
-fn build_orphan_report(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<FileOpReport> {
+fn build_orphan_report(
+    root: &Path,
+    map: &CodeMap,
+    query: &str,
+    limit: usize,
+) -> Result<FileOpReport> {
     let prefix = query.replace('\\', "/");
     let scope = vec![format!("scope: {query}")];
     let mut findings = Vec::new();
@@ -207,7 +217,9 @@ mod tests {
 
     use crate::model::{CodeMap, DependencyEntry, FileEntry, GitInfo};
 
-    use super::{classify_shim, inbound_counts, is_entry_point, render_orphan_report, textual_path_refs};
+    use super::{
+        classify_shim, inbound_counts, is_entry_point, render_orphan_report, textual_path_refs,
+    };
 
     #[test]
     fn ignores_entrypoints() {

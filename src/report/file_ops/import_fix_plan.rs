@@ -10,7 +10,7 @@ use super::common::{
     resolve_relative_import, slash_path,
 };
 use super::imports::parse_ts_imports;
-use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
 pub fn print_import_fix_plan(
     root: &Path,
@@ -62,7 +62,11 @@ fn build_import_fix_report(
 
             let depth = import.specifier.matches("../").count();
             *depth_map
-                .entry(if depth >= 2 { "deep".to_string() } else { "flat".to_string() })
+                .entry(if depth >= 2 {
+                    "deep".to_string()
+                } else {
+                    "flat".to_string()
+                })
                 .or_default() += 1;
 
             if let Some(resolved) = resolve_relative_import(root, &file.path, &import.specifier) {
@@ -74,7 +78,12 @@ fn build_import_fix_report(
                         import.specifier
                     ));
                 }
-            } else if is_deleted_relative_target(&changed_statuses, root, &file.path, &import.specifier) {
+            } else if is_deleted_relative_target(
+                &changed_statuses,
+                root,
+                &file.path,
+                &import.specifier,
+            ) {
                 stale.push(format!(
                     "{}:{} {}",
                     slash_path(&file.path),
@@ -267,7 +276,10 @@ mod tests {
         let root = PathBuf::from("repo");
         let source_file = PathBuf::from("crates/apps/amigo-editor/src/app/store/editorStore.ts");
         let mut statuses = BTreeMap::new();
-        statuses.insert("crates/apps/amigo-editor/src/app/b.ts".to_string(), "D".to_string());
+        statuses.insert(
+            "crates/apps/amigo-editor/src/app/b.ts".to_string(),
+            "D".to_string(),
+        );
 
         assert!(is_deleted_relative_target(
             &statuses,

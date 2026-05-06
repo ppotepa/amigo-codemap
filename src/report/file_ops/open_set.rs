@@ -7,7 +7,7 @@ use crate::model::CodeMap;
 use crate::report::common::{feature_group, is_codemap, is_docs, is_test_file, slash_path};
 
 use super::common::{changed_by_path, changed_status_by_path, text_refs_like};
-use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
 pub fn print_open_set(
     root: &Path,
@@ -81,7 +81,12 @@ fn build_open_set_report(
             .take(first_limit)
             .map(|item| (item.0.as_str(), &item.1.0, &item.1.1))
         {
-            findings.push(format!("  {} [score {}, {}]", path, score, reasons.join(", ")));
+            findings.push(format!(
+                "  {} [score {}, {}]",
+                path,
+                score,
+                reasons.join(", ")
+            ));
         }
     }
 
@@ -93,7 +98,12 @@ fn build_open_set_report(
             .take(second_limit)
             .map(|item| (item.0.as_str(), &item.1.0, &item.1.1))
         {
-            findings.push(format!("  {} [score {}, {}]", path, score, reasons.join(", ")));
+            findings.push(format!(
+                "  {} [score {}, {}]",
+                path,
+                score,
+                reasons.join(", ")
+            ));
         }
     }
 
@@ -114,10 +124,14 @@ fn build_open_set_report(
             level: RiskLevel::Medium,
             message: "query has no indexed definitions; using fallback ranking".to_string(),
         });
-    } else if definition_paths.iter().any(|path| changed_paths.contains(path)) {
+    } else if definition_paths
+        .iter()
+        .any(|path| changed_paths.contains(path))
+    {
         risks.push(Risk {
             level: RiskLevel::Low,
-            message: "query definition changed; start with definition and store callers".to_string(),
+            message: "query definition changed; start with definition and store callers"
+                .to_string(),
         });
     } else {
         risks.push(Risk {
@@ -285,7 +299,9 @@ mod tests {
     fn excludes_docs() {
         assert!(is_low_value_path("README.md"));
         assert!(is_low_value_path("AMIGO_WORKFLOW.md"));
-        assert!(is_low_value_path("crates/tools/amigo-codemap/tests/fixtures/x.txt"));
+        assert!(is_low_value_path(
+            "crates/tools/amigo-codemap/tests/fixtures/x.txt"
+        ));
     }
 
     #[test]
@@ -335,12 +351,12 @@ mod tests {
             &refs,
             true,
         );
-        assert!(!ranked.contains_key(
-            "crates/tools/amigo-codemap/tests/fixtures/move_plan/editor_store.tsx"
-        ));
-        assert!(ranked.contains_key(
-            "crates/apps/amigo-editor/src/app/selectionSelectors.ts"
-        ));
+        assert!(
+            !ranked.contains_key(
+                "crates/tools/amigo-codemap/tests/fixtures/move_plan/editor_store.tsx"
+            )
+        );
+        assert!(ranked.contains_key("crates/apps/amigo-editor/src/app/selectionSelectors.ts"));
     }
 
     #[test]
@@ -409,8 +425,14 @@ mod tests {
             },
         };
 
-        let report = build_open_set_report(root.as_path(), &map, "EditorSelectionRef", Some("migrate"), 5)
-            .expect("open-set should build");
+        let report = build_open_set_report(
+            root.as_path(),
+            &map,
+            "EditorSelectionRef",
+            Some("migrate"),
+            5,
+        )
+        .expect("open-set should build");
         assert_eq!(
             crate::report::file_ops::model::render_report(&report).trim(),
             include_str!("../../../tests/snapshots/open_set.snap").trim()

@@ -89,10 +89,7 @@ pub fn changed_status_by_path(map: &CodeMap) -> BTreeMap<String, String> {
         .collect()
 }
 
-pub fn changed_status<'a>(
-    changed: &'a BTreeMap<String, String>,
-    path: &Path,
-) -> Option<&'a str> {
+pub fn changed_status<'a>(changed: &'a BTreeMap<String, String>, path: &Path) -> Option<&'a str> {
     changed.get(&slash_path(path)).map(String::as_str)
 }
 
@@ -164,9 +161,9 @@ pub fn resolve_relative_import(
                 .map(PathBuf::from)
                 .or_else(|| {
                     candidate
-                .strip_prefix(&normalized_root)
-                .ok()
-                .map(PathBuf::from)
+                        .strip_prefix(&normalized_root)
+                        .ok()
+                        .map(PathBuf::from)
                 })
         })
 }

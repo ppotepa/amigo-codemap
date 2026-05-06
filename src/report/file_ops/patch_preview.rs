@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::io::{self, Read};
 use std::path::Path;
-use std::fmt::Write as _;
 
 use anyhow::Result;
 
@@ -10,7 +10,7 @@ use crate::report::common::{feature_group, slash_path};
 use crate::report::verify_plan::plan_for_paths;
 
 use super::diff::parse_patch_files;
-use super::model::{render_report, FileOpReport, NextAction, Risk, RiskLevel};
+use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
 pub fn print_patch_preview(
     root: &Path,
@@ -26,7 +26,10 @@ pub fn print_patch_preview(
         text
     };
 
-    print!("{}", render_patch_preview_with_source(map, &text, limit, from.is_some()));
+    print!(
+        "{}",
+        render_patch_preview_with_source(map, &text, limit, from.is_some())
+    );
     let _ = root;
     Ok(())
 }
@@ -63,9 +66,7 @@ fn build_patch_preview_report(
     let mut symbols = BTreeSet::<String>::new();
 
     for file in files.iter().take(limit) {
-        *area_counts
-            .entry(patch_area(&file.new_path))
-            .or_default() += 1;
+        *area_counts.entry(patch_area(&file.new_path)).or_default() += 1;
 
         if let Some(entry) = map
             .files
@@ -90,7 +91,10 @@ fn build_patch_preview_report(
         }
     }
 
-    let mut findings = vec![format!("files touched: {}", files.len()), "areas:".to_string()];
+    let mut findings = vec![
+        format!("files touched: {}", files.len()),
+        "areas:".to_string(),
+    ];
     if area_counts.is_empty() {
         findings.push("  none".to_string());
     } else {
@@ -109,7 +113,10 @@ fn build_patch_preview_report(
     }
 
     let mut risks = Vec::new();
-    if files.iter().any(|file| file.new_path.contains("/app/store/")) {
+    if files
+        .iter()
+        .any(|file| file.new_path.contains("/app/store/"))
+    {
         risks.push(Risk {
             level: RiskLevel::High,
             message: "reducer/action compatibility".to_string(),
@@ -124,7 +131,10 @@ fn build_patch_preview_report(
             message: "properties or registry behavior".to_string(),
         });
     }
-    if files.iter().any(|file| file.new_path.contains("/src-tauri/src/commands/")) {
+    if files
+        .iter()
+        .any(|file| file.new_path.contains("/src-tauri/src/commands/"))
+    {
         risks.push(Risk {
             level: RiskLevel::Medium,
             message: "Tauri command registration/import risk".to_string(),
@@ -217,7 +227,9 @@ mod tests {
                 },
                 FileEntry {
                     id: "f2".to_string(),
-                    path: PathBuf::from("crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx"),
+                    path: PathBuf::from(
+                        "crates/apps/amigo-editor/src/main-window/MainEditorWindow.tsx",
+                    ),
                     language: "tsx".to_string(),
                     lines: 30,
                     hash: String::new(),

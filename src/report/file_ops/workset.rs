@@ -11,7 +11,7 @@ use crate::report::common::{
 };
 use crate::report::verify_plan::plan_for_paths;
 
-use super::model::{render_report, FileOpReport, NextAction};
+use super::model::{FileOpReport, NextAction, render_report};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Workset {
@@ -76,7 +76,14 @@ pub fn print_workset(
         scope: vec![
             format!("name: {name}"),
             format!("query: {}", workset.query),
-            format!("mode: {}", if from_impact.is_some() { "impact" } else { "changed" }),
+            format!(
+                "mode: {}",
+                if from_impact.is_some() {
+                    "impact"
+                } else {
+                    "changed"
+                }
+            ),
         ],
         findings,
         risks: Vec::new(),
@@ -243,15 +250,17 @@ fn build_impact_files(root: &Path, map: &CodeMap, symbol: &str) -> Result<Vec<Wo
         if should_skip_workset_path(&reference.path) {
             continue;
         }
-        items.entry(reference.path.clone()).or_insert_with(|| WorksetFile {
-            status: if changed.contains(&reference.path) {
-                "changed".to_string()
-            } else {
-                "pending".to_string()
-            },
-            path: reference.path.clone(),
-            reason: "impact-ref".to_string(),
-        });
+        items
+            .entry(reference.path.clone())
+            .or_insert_with(|| WorksetFile {
+                status: if changed.contains(&reference.path) {
+                    "changed".to_string()
+                } else {
+                    "pending".to_string()
+                },
+                path: reference.path.clone(),
+                reason: "impact-ref".to_string(),
+            });
     }
 
     let mut values = items.into_values().collect::<Vec<_>>();
@@ -282,7 +291,9 @@ mod tests {
 
     use crate::model::{CodeMap, FileEntry, GitChange, GitInfo, SymbolEntry};
 
-    use super::{build_workset, normalize_root, workset_status_report, Workset, WorksetCheck, WorksetFile};
+    use super::{
+        Workset, WorksetCheck, WorksetFile, build_workset, normalize_root, workset_status_report,
+    };
 
     fn sample_map() -> CodeMap {
         CodeMap {
@@ -375,8 +386,18 @@ mod tests {
         let root = temp_root("missing-workset");
         let path = root.join(".amigo/worksets/missing.json");
         let report = workset_status_report("missing", &path).expect("status should render");
-        assert!(report.findings.iter().any(|item| item.contains("missing workset:")));
-        assert!(report.verify.iter().any(|item| item.contains("save workset")));
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|item| item.contains("missing workset:"))
+        );
+        assert!(
+            report
+                .verify
+                .iter()
+                .any(|item| item.contains("save workset"))
+        );
     }
 
     #[test]
@@ -401,15 +422,17 @@ mod tests {
                 status: "pending".to_string(),
             }],
         };
-        fs::write(&path, serde_json::to_vec_pretty(&stored).expect("serialize"))
-            .expect("write workset");
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&stored).expect("serialize"),
+        )
+        .expect("write workset");
 
         let report = workset_status_report("selection", &path).expect("status should read");
         assert!(report.findings.iter().any(|item| item == "files: 1"));
-        assert!(report
-            .findings
-            .iter()
-            .any(|item| item.contains("changed crates/apps/amigo-editor/src/app/selectionTypes.ts")));
+        assert!(report.findings.iter().any(|item| {
+            item.contains("changed crates/apps/amigo-editor/src/app/selectionTypes.ts")
+        }));
         assert_eq!(report.verify, vec!["npm run build".to_string()]);
     }
 

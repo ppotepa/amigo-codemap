@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde_yaml::Value;
 
 use super::common::slash_path;
-use super::model::{render_report, FileOpReport, NextAction};
+use super::model::{FileOpReport, NextAction, render_report};
 
 pub fn print_asset_file_check(root: &Path, query: &str, limit: usize) -> Result<()> {
     let report = build_asset_file_report(root, query, limit)?;
@@ -44,7 +44,12 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
         );
         let structured_values = parsed
             .as_ref()
-            .map(|value| collect_yaml_field_values(value, &["path", "source", "image", "scene", "spritesheet", "font"]))
+            .map(|value| {
+                collect_yaml_field_values(
+                    value,
+                    &["path", "source", "image", "scene", "spritesheet", "font"],
+                )
+            })
             .unwrap_or_default();
         let all_values = if structured_values.is_empty() {
             values
@@ -53,8 +58,16 @@ fn build_asset_file_report(root: &Path, query: &str, limit: usize) -> Result<Fil
         };
         let ids_in_file = parsed
             .as_ref()
-            .map(|value| collect_yaml_field_values(value, &["id"]).into_iter().collect::<BTreeSet<_>>())
-            .unwrap_or_else(|| yaml_field_values(&text, &["id"]).into_iter().collect::<BTreeSet<_>>());
+            .map(|value| {
+                collect_yaml_field_values(value, &["id"])
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_else(|| {
+                yaml_field_values(&text, &["id"])
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+            });
 
         for id in ids_in_file {
             duplicate_ids
@@ -252,7 +265,8 @@ fn count_yaml_field_occurrences_inner(value: &Value, keys: &BTreeSet<&str>) -> u
         Value::Mapping(map) => map
             .iter()
             .map(|(key, value)| {
-                let direct = matches!(key, Value::String(name) if keys.contains(name.as_str())) as usize;
+                let direct =
+                    matches!(key, Value::String(name) if keys.contains(name.as_str())) as usize;
                 direct + count_yaml_field_occurrences_inner(value, keys)
             })
             .sum(),
@@ -264,11 +278,7 @@ fn count_yaml_field_occurrences_inner(value: &Value, keys: &BTreeSet<&str>) -> u
     }
 }
 
-fn collect_yaml_field_values_inner(
-    value: &Value,
-    keys: &BTreeSet<&str>,
-    out: &mut Vec<String>,
-) {
+fn collect_yaml_field_values_inner(value: &Value, keys: &BTreeSet<&str>, out: &mut Vec<String>) {
     match value {
         Value::Mapping(map) => {
             for (key, value) in map {
@@ -337,8 +347,14 @@ mod tests {
 
     #[test]
     fn collects_yaml_fields() {
-        let values = yaml_field_values("id: hero\nscene: scenes/start.scene.json\n", &["id", "scene"]);
-        assert_eq!(values, vec!["hero".to_string(), "scenes/start.scene.json".to_string()]);
+        let values = yaml_field_values(
+            "id: hero\nscene: scenes/start.scene.json\n",
+            &["id", "scene"],
+        );
+        assert_eq!(
+            values,
+            vec!["hero".to_string(), "scenes/start.scene.json".to_string()]
+        );
     }
 
     #[test]
@@ -381,7 +397,10 @@ mod tests {
         )
         .expect("yaml should parse");
         let values = collect_yaml_field_values(&parsed, &["scene", "font"]);
-        assert!(values.contains(&"demo-scene".to_string()) || values.contains(&"raw/scenes/demo.scene.json".to_string()));
+        assert!(
+            values.contains(&"demo-scene".to_string())
+                || values.contains(&"raw/scenes/demo.scene.json".to_string())
+        );
         assert!(values.contains(&"raw/fonts/main.ttf".to_string()));
     }
 
