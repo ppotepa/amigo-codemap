@@ -34,6 +34,7 @@ pub struct Options {
 pub enum Command {
     Scan,
     Watch,
+    Files,
     Changed,
     Symbols,
     Compact,
@@ -164,6 +165,7 @@ impl Cli {
             match arg.as_str() {
                 "scan" => command = Some(Command::Scan),
                 "watch" => command = Some(Command::Watch),
+                "files" => command = Some(Command::Files),
                 "changed" => command = Some(Command::Changed),
                 "symbols" => command = Some(Command::Symbols),
                 "compact" => command = Some(Command::Compact),
@@ -227,6 +229,10 @@ impl Cli {
                 "--group" => {
                     index += 1;
                     group = Some(required_value(&args, index, "--group")?);
+                }
+                "--query" => {
+                    index += 1;
+                    query = Some(required_value(&args, index, "--query")?);
                 }
                 "--lines" => lines = true,
                 "--changed" => changed_only = true,
@@ -354,7 +360,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply to modify files\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply to modify files\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -368,6 +374,7 @@ fn parse_command_name(value: &str) -> Option<Command> {
     match value {
         "scan" => Some(Command::Scan),
         "watch" => Some(Command::Watch),
+        "files" => Some(Command::Files),
         "changed" => Some(Command::Changed),
         "symbols" => Some(Command::Symbols),
         "compact" => Some(Command::Compact),
@@ -445,6 +452,27 @@ mod tests {
 
         assert_eq!(cli.command, Command::Changed);
         assert_eq!(cli.options.group.as_deref(), Some("package"));
+    }
+
+    #[test]
+    fn parses_files_query_and_group() {
+        let cli = Cli::parse([
+            "files".to_string(),
+            "--query".to_string(),
+            "layer:frontend,kind:test".to_string(),
+            "--group".to_string(),
+            "tag".to_string(),
+            "--changed".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Files);
+        assert_eq!(
+            cli.options.query.as_deref(),
+            Some("layer:frontend,kind:test")
+        );
+        assert_eq!(cli.options.group.as_deref(), Some("tag"));
+        assert!(cli.options.changed_only);
     }
 
     #[test]

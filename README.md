@@ -22,6 +22,7 @@ Workspace code map generator for LLM-assisted development.
 - `brief` - tiny repo summary.
 - `compact` - compact JSON written to `.amigo/codemap.json`.
 - `changed --group path|package|language|status` - grouped dirty worktree summary.
+- `files [--query tag1,tag2]` - list files with generated tags and optional filtering/grouping.
 - `find <text>` - literal search across indexed text files.
 - `scope <query>` - small context for a file, area, package, or symbol.
 - `refs <query>` - definitions plus text references, including CSS selectors at level 2.
@@ -70,6 +71,7 @@ These commands provide compact operational context for LLM-assisted refactors.
 ```powershell
 cargo run -p amigo-codemap -- brief
 cargo run -p amigo-codemap -- changed --group package --limit 20
+cargo run -p amigo-codemap -- files --query layer:app,kind:source --limit 40
 cargo run -p amigo-codemap -- find "AssetTreePanel" --limit 20
 cargo run -p amigo-codemap -- scope AssetTreePanel --limit 30
 cargo run -p amigo-codemap -- refs asset-tree-section --limit 20

@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let mut cli = Cli::parse(std::env::args().skip(1))?;
 
     match cli.command {
-        Command::Brief | Command::Changed | Command::Find | Command::Docs | Command::CommandMap => {
+        Command::Brief | Command::Changed | Command::Find | Command::Docs | Command::CommandMap | Command::Files => {
             cli.options.level = 0;
             cli.options.ai = false;
         }
@@ -82,6 +82,16 @@ fn main() -> Result<()> {
         Command::Changed => {
             let map = scan::scan_project(&cli.options)?;
             report::print_changed(&map, cli.options.group.as_deref(), cli.options.limit);
+        }
+        Command::Files => {
+            let map = scan::scan_project(&cli.options)?;
+            report::print_files(
+                &map,
+                cli.options.query.as_deref(),
+                cli.options.group.as_deref(),
+                cli.options.changed_only,
+                cli.options.limit,
+            );
         }
         Command::Symbols => {
             let map = scan::scan_project(&cli.options)?;
