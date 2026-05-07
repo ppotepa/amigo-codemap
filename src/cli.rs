@@ -91,6 +91,8 @@ pub enum Command {
     TauriCommands,
     ServiceShape,
     RegistryCheck,
+    MetadataAudit,
+    DescriptorSkeleton,
     OperationsSummary,
     CommitPlan,
     CommitSummary,
@@ -209,6 +211,8 @@ impl Cli {
                         | Command::Dup
                         | Command::ServiceShape
                         | Command::RegistryCheck
+                        | Command::MetadataAudit
+                        | Command::DescriptorSkeleton
                         | Command::AppendPlan
                         | Command::CopyPlan
                         | Command::Slice
@@ -289,6 +293,8 @@ impl Cli {
                 "tauri-commands" => command = Some(Command::TauriCommands),
                 "service-shape" => command = Some(Command::ServiceShape),
                 "registry-check" => command = Some(Command::RegistryCheck),
+                "metadata-audit" => command = Some(Command::MetadataAudit),
+                "descriptor-skeleton" => command = Some(Command::DescriptorSkeleton),
                 "operations-summary" => command = Some(Command::OperationsSummary),
                 "commit-plan" => command = Some(Command::CommitPlan),
                 "commit-summary" => command = Some(Command::CommitSummary),
@@ -463,6 +469,8 @@ impl Cli {
                         | Command::Dup
                         | Command::ServiceShape
                         | Command::RegistryCheck
+                        | Command::MetadataAudit
+                        | Command::DescriptorSkeleton
                         | Command::Slice
                         | Command::AppendPlan
                         | Command::CopyPlan
@@ -612,6 +620,8 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "tauri-commands" => Some(Command::TauriCommands),
         "service-shape" => Some(Command::ServiceShape),
         "registry-check" => Some(Command::RegistryCheck),
+        "metadata-audit" => Some(Command::MetadataAudit),
+        "descriptor-skeleton" => Some(Command::DescriptorSkeleton),
         "operations-summary" => Some(Command::OperationsSummary),
         "commit-plan" => Some(Command::CommitPlan),
         "commit-summary" => Some(Command::CommitSummary),

@@ -1,9 +1,9 @@
 mod cache;
 mod cli;
-mod git;
-mod model;
+pub use amigo_symbol_explorer::git;
+pub use amigo_symbol_explorer::model;
 mod output;
-mod query;
+pub use amigo_symbol_explorer::query;
 mod report;
 mod scan;
 mod snapshot_store;
@@ -43,6 +43,8 @@ fn main() -> Result<()> {
         | Command::Dup
         | Command::TauriCommands
         | Command::RegistryCheck
+        | Command::MetadataAudit
+        | Command::DescriptorSkeleton
         | Command::OperationsSummary
         | Command::CommitPlan
         | Command::CommitSummary
@@ -440,6 +442,19 @@ fn main() -> Result<()> {
                 &cli.options.root,
                 cli.options.query.as_deref(),
                 cli.options.limit,
+            )?;
+        }
+        Command::MetadataAudit => {
+            let report =
+                amigo_symbol_explorer::metadata::component_audit::audit_component_metadata(
+                    &cli.options.root,
+                )?;
+            report.print_text();
+        }
+        Command::DescriptorSkeleton => {
+            let component = cli.options.query.as_deref().unwrap_or("ExampleComponent");
+            amigo_symbol_explorer::metadata::descriptor_skeleton::print_descriptor_skeleton(
+                component,
             )?;
         }
         Command::OperationsSummary => {
