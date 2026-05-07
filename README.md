@@ -1035,6 +1035,21 @@ The benchmark is intentionally practical, not scientific. The main question is:
 How many files and lines must the agent inspect before the first correct patch?
 ```
 
+### Showcase Results
+
+These results compare codemap-first discovery against a focused standard workflow using `rg` and targeted `Get-Content`. The benchmark measured research output only: commands, files opened, lines read, and estimated context tokens before making the first correct patch.
+
+| Task | Method | Commands | Files opened | Lines read | Est. tokens | Token saving |
+|---|---|---:|---:|---:|---:|---:|
+| Snapshot label passthrough | codemap-first | 7 | 2 | 25 | 941 | 94.1% |
+| Snapshot label passthrough | standard | 5 | 4 | 2159 | 15874 | baseline |
+| Real-snapshot guard | codemap-first | 10 | 5 | 230 | 3759 | 90.2% |
+| Real-snapshot guard | standard | 9 | 8 | 3509 | 38561 | baseline |
+| Pointer fast-path | codemap-first | 13 | 7 | 822 | 14210 | 82.1% |
+| Pointer fast-path | standard | 14 | 13 | 4775 | 79403 | baseline |
+
+Short version: codemap does not mainly reduce command count. It reduces how much code the agent must read before it can safely edit.
+
 ### Methods
 
 Each task is executed twice:
