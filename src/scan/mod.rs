@@ -13,6 +13,8 @@ use crate::cli::Options;
 use crate::git;
 use crate::model::{AreaEntry, CodeMap, RelationEntry};
 
+pub use files::language_for;
+
 pub fn scan_project(options: &Options) -> Result<CodeMap> {
     let mut files = files::scan_files(&options.root)?;
     files.sort_by(|a, b| a.path.cmp(&b.path));

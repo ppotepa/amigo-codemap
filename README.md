@@ -480,6 +480,8 @@ Then run the suggested build and tests. Compiler/tests remain final truth.
 | I want likely callsites | `callsite-candidates` | `& $cm callsite-candidates scan_symbols` | Heuristic callsite list |
 | I want TODO/risk scope | `todo-index` / `risk-index` | `& $cm risk-index --limit 30` | Indexed TODO/risk/large/changed files |
 | I want to apply changes safely | `patch-check` / `ops-check` | `& $cm ops-check --from plan.yml` | Validates before write |
+| I want an ops plan starter | `ops-skeleton` | `& $cm ops-skeleton scan_symbols --out plan.yml --write` | Creates a YAML operations skeleton |
+| I need stable symbol range data | `range-for-symbol` | `& $cm range-for-symbol scan_symbols` | Path, lines, hash, signature, ops hint |
 | I want to save scope | `workset` | `& $cm workset ui-doc --from-impact UiDocumentEditor --save` | Saved task context |
 
 ## Command Reference
@@ -754,9 +756,27 @@ replace this method body
 Always run:
 
 ```powershell
+& $cm ops-skeleton <query> --out plan.yml --write
 & $cm ops-preview --from plan.yml
 & $cm ops-check --from plan.yml
 & $cm ops-apply --from plan.yml --write
+```
+
+Use `range-for-symbol` before hand-writing symbol/range based plans:
+
+```powershell
+& $cm range-for-symbol scan_symbols
+```
+
+Expected output includes:
+
+```text
+path: crates/tools/amigo-codemap/src/scan/symbols.rs
+start_line: 11
+end_line: 29
+hash: 11d3d664
+expected_hash: 11d3d664
+signature: pub fn scan_symbols(...)
 ```
 
 Stable operations for 0.1:
@@ -767,6 +787,7 @@ replace_file
 replace_range
 delete_range
 insert_after_anchor
+replace_between_anchors
 delete_file
 ```
 
@@ -817,6 +838,52 @@ ops:
     content: |
       import { UiDocumentPropertiesPanel } from "./panels/UiDocumentPropertiesPanel";
 ```
+
+### Example: Replace Between Anchors
+
+```yaml
+version: 1
+task: replace-registry-section
+ops:
+  - kind: replace_between_anchors
+    path: crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx
+    start_anchor: "// @codemap anchor:properties-registry-start domain:properties role:registry"
+    end_anchor: "// @codemap anchor:properties-registry-end domain:properties role:registry"
+    expected_hash: "11d3d664"
+    content: |
+      import { UiDocumentPropertiesPanel } from "./panels/UiDocumentPropertiesPanel";
+```
+
+`replace_between_anchors` keeps both anchor lines and replaces only the content between them.
+
+### Ops-First Response Format
+
+For medium and large changes, prefer this structure:
+
+```text
+Task:
+  short-name
+
+Intent:
+  what this change fixes
+
+Codemap:
+  commands used to narrow scope
+
+Files:
+  files touched
+
+Ops:
+  plan.yml
+
+Verify:
+  commands to run
+
+Acceptance:
+  final conditions
+```
+
+The code changes should live in `plan.yml` whenever practical. Prose should explain intent and risks, not duplicate the patch.
 
 ### Example: Replace Symbol, Experimental
 
@@ -1414,6 +1481,8 @@ c
 # Safe edits
 & $cm patch-check --from patch.diff
 & $cm patch-apply --from patch.diff --write
+& $cm ops-skeleton <query> --out plan.yml --write
+& $cm range-for-symbol <symbol>
 & $cm ops-check --from plan.yml
 & $cm ops-apply --from plan.yml --write
 

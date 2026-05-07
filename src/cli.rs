@@ -19,6 +19,7 @@ pub struct Options {
     pub patterns: Vec<String>,
     pub file: Option<PathBuf>,
     pub from: Option<PathBuf>,
+    pub yaml: Option<String>,
     pub by: Option<String>,
     pub to: Option<PathBuf>,
     pub symbol: Option<String>,
@@ -30,8 +31,13 @@ pub struct Options {
     pub save: bool,
     pub status: bool,
     pub write: bool,
+    pub strict: bool,
+    pub backup: bool,
+    pub stop_on_error: bool,
+    pub run: bool,
     pub why: bool,
     pub metadata: bool,
+    pub json: bool,
     pub no_cache: bool,
     pub compact: bool,
     pub hide_generated: bool,
@@ -107,6 +113,13 @@ pub enum Command {
     OpsPreview,
     OpsCheck,
     OpsApply,
+    OpsSkeleton,
+    OpsSchema,
+    OpsSplit,
+    OpsVerify,
+    OpsSummary,
+    RangeForSymbol,
+    AnchorRange,
     CommitFiles,
 }
 
@@ -137,6 +150,7 @@ impl Cli {
         let mut patterns = Vec::new();
         let mut file = None;
         let mut from = None;
+        let mut yaml = None;
         let mut by = None;
         let mut to = None;
         let mut symbol = None;
@@ -148,8 +162,13 @@ impl Cli {
         let mut save = false;
         let mut status = false;
         let mut write = false;
+        let mut strict = false;
+        let mut backup = false;
+        let mut stop_on_error = false;
+        let mut run = false;
         let mut why = false;
         let mut metadata = false;
+        let mut json = false;
         let mut no_cache = false;
         let mut compact = false;
         let mut hide_generated = false;
@@ -198,6 +217,13 @@ impl Cli {
                         | Command::OpsPreview
                         | Command::OpsCheck
                         | Command::OpsApply
+                        | Command::OpsSkeleton
+                        | Command::OpsSchema
+                        | Command::OpsSplit
+                        | Command::OpsVerify
+                        | Command::OpsSummary
+                        | Command::RangeForSymbol
+                        | Command::AnchorRange
                         | Command::CommitFiles,
                     ) if query.is_none() => {
                         query = Some(arg.to_owned());
@@ -279,6 +305,13 @@ impl Cli {
                 "ops-preview" => command = Some(Command::OpsPreview),
                 "ops-check" => command = Some(Command::OpsCheck),
                 "ops-apply" => command = Some(Command::OpsApply),
+                "ops-skeleton" => command = Some(Command::OpsSkeleton),
+                "ops-schema" => command = Some(Command::OpsSchema),
+                "ops-split" => command = Some(Command::OpsSplit),
+                "ops-verify" => command = Some(Command::OpsVerify),
+                "ops-summary" => command = Some(Command::OpsSummary),
+                "range-for-symbol" => command = Some(Command::RangeForSymbol),
+                "anchor-range" => command = Some(Command::AnchorRange),
                 "commit-files" => command = Some(Command::CommitFiles),
                 "explain" | "--help" | "-h" => command = Some(Command::Explain),
                 "--root" => {
@@ -306,6 +339,10 @@ impl Cli {
                     index += 1;
                     query = Some(required_value(&args, index, "--query")?);
                 }
+                "--example" => {
+                    index += 1;
+                    query = Some(required_value(&args, index, "--example")?);
+                }
                 "--lines" => {
                     lines = true;
                     if args.get(index + 1).is_some_and(|value| {
@@ -332,6 +369,10 @@ impl Cli {
                 "--from" => {
                     index += 1;
                     from = Some(PathBuf::from(required_value(&args, index, "--from")?));
+                }
+                "--yaml" => {
+                    index += 1;
+                    yaml = Some(required_value(&args, index, "--yaml")?);
                 }
                 "--by" => {
                     index += 1;
@@ -369,8 +410,13 @@ impl Cli {
                 "--save" => save = true,
                 "--status" => status = true,
                 "--write" => write = true,
+                "--strict" => strict = true,
+                "--backup" => backup = true,
+                "--stop-on-error" => stop_on_error = true,
+                "--run" => run = true,
                 "--why" => why = true,
                 "--metadata" => metadata = true,
+                "--json" => json = true,
                 "--no-cache" => no_cache = true,
                 "--compact" => compact = true,
                 "--hide-generated" => hide_generated = true,
@@ -414,6 +460,13 @@ impl Cli {
                         | Command::OpsPreview
                         | Command::OpsCheck
                         | Command::OpsApply
+                        | Command::OpsSkeleton
+                        | Command::OpsSchema
+                        | Command::OpsSplit
+                        | Command::OpsVerify
+                        | Command::OpsSummary
+                        | Command::RangeForSymbol
+                        | Command::AnchorRange
                         | Command::CommitFiles,
                     ) if query.is_none() => {
                         query = Some(value.to_owned());
@@ -446,6 +499,7 @@ impl Cli {
                 patterns,
                 file,
                 from,
+                yaml,
                 by,
                 to,
                 symbol,
@@ -457,8 +511,13 @@ impl Cli {
                 save,
                 status,
                 write,
+                strict,
+                backup,
+                stop_on_error,
+                run,
                 why,
                 metadata,
+                json,
                 no_cache,
                 compact,
                 hide_generated,
@@ -470,7 +529,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  refresh           refresh compact output and fast snapshot cache\n  watch\n  status            show fast snapshot cache status\n  changes           live git status + shortstat summary\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  commit-plan        live git grouped commit plan\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag|domain\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply or anchors to write files\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --compact        compact output for changes/commit-plan\n  --hide-generated hide generated/index files in changes output\n  --warnings       show only live git warnings where supported\n  --no-cache       force full scan instead of reading .amigo/codemap.snapshot.json\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  refresh           refresh compact output and fast snapshot cache\n  watch\n  status            show fast snapshot cache status\n  changes           live git status + shortstat summary\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  ops-schema [--json] [--example kind]\n  ops-preview [--from plan.yml|--from -|--yaml text]\n  ops-check [--from plan.yml|--from -|--yaml text] [--strict]\n  ops-apply [--from plan.yml|--from -|--yaml text] [--write] [--backup] [--stop-on-error]\n  ops-skeleton <query> [--out plan.yml] [--write]\n  ops-split [--from plan.yml|--yaml text] [--by domain|risk]\n  ops-verify [--from plan.yml|--yaml text] [--run]\n  ops-summary [--from plan.yml|--yaml text] [--changed]\n  range-for-symbol <symbol>\n  anchor-range <anchor> [--to end-anchor]\n  commit-files [--changed]\n  commit-plan        live git grouped commit plan\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag|domain\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch/ops input file; use - for stdin\n  --yaml <text>    inline ops-plan YAML input\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup/split strategy\n  --to <path>      move target, rename destination, or end anchor\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow write-capable commands to modify files\n  --strict         fail unsafe ops-plan locators\n  --backup         create .amigo/ops-backups before ops-apply writes\n  --stop-on-error  stop ops-apply after first failed operation\n  --run            allow command-specific execution mode where supported\n  --json           JSON output where supported\n  --example <kind> select ops-schema example kind\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --compact        compact output for changes/commit-plan\n  --hide-generated hide generated/index files in changes output\n  --warnings       show only live git warnings where supported\n  --no-cache       force full scan instead of reading .amigo/codemap.snapshot.json\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -548,6 +607,13 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "ops-preview" => Some(Command::OpsPreview),
         "ops-check" => Some(Command::OpsCheck),
         "ops-apply" => Some(Command::OpsApply),
+        "ops-skeleton" => Some(Command::OpsSkeleton),
+        "ops-schema" => Some(Command::OpsSchema),
+        "ops-split" => Some(Command::OpsSplit),
+        "ops-verify" => Some(Command::OpsVerify),
+        "ops-summary" => Some(Command::OpsSummary),
+        "range-for-symbol" => Some(Command::RangeForSymbol),
+        "anchor-range" => Some(Command::AnchorRange),
         "commit-files" => Some(Command::CommitFiles),
         "explain" | "--help" | "-h" => Some(Command::Explain),
         _ => None,
@@ -947,5 +1013,82 @@ mod tests {
             Some(std::path::Path::new("plan.yml"))
         );
         assert!(cli.options.write);
+    }
+
+    #[test]
+    fn parses_ops_skeleton_write_out() {
+        let cli = Cli::parse([
+            "ops-skeleton".to_string(),
+            "scan_symbols".to_string(),
+            "--out".to_string(),
+            "plan.yml".to_string(),
+            "--write".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::OpsSkeleton);
+        assert_eq!(cli.options.query.as_deref(), Some("scan_symbols"));
+        assert_eq!(
+            cli.options.out.file_name().and_then(|name| name.to_str()),
+            Some("plan.yml")
+        );
+        assert!(cli.options.write);
+    }
+
+    #[test]
+    fn parses_range_for_symbol_query() {
+        let cli = Cli::parse(["range-for-symbol".to_string(), "scan_symbols".to_string()])
+            .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::RangeForSymbol);
+        assert_eq!(cli.options.query.as_deref(), Some("scan_symbols"));
+    }
+
+    #[test]
+    fn parses_inline_yaml_and_strict_flags() {
+        let cli = Cli::parse([
+            "ops-check".to_string(),
+            "--yaml".to_string(),
+            "version: 1\nops: []".to_string(),
+            "--strict".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::OpsCheck);
+        assert_eq!(cli.options.yaml.as_deref(), Some("version: 1\nops: []"));
+        assert!(cli.options.strict);
+    }
+
+    #[test]
+    fn parses_ops_schema_json_example() {
+        let cli = Cli::parse([
+            "ops-schema".to_string(),
+            "--json".to_string(),
+            "--example".to_string(),
+            "replace_symbol".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::OpsSchema);
+        assert_eq!(cli.options.query.as_deref(), Some("replace_symbol"));
+        assert!(cli.options.json);
+    }
+
+    #[test]
+    fn parses_anchor_range_to() {
+        let cli = Cli::parse([
+            "anchor-range".to_string(),
+            "tree-start".to_string(),
+            "--to".to_string(),
+            "tree-end".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::AnchorRange);
+        assert_eq!(cli.options.query.as_deref(), Some("tree-start"));
+        assert_eq!(
+            cli.options.to.as_deref(),
+            Some(std::path::Path::new("tree-end"))
+        );
     }
 }

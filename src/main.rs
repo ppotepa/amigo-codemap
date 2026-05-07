@@ -59,7 +59,6 @@ fn main() -> Result<()> {
         | Command::PatchCheck
         | Command::PatchApply
         | Command::OpsPreview
-        | Command::OpsCheck
         | Command::RiskIndex
         | Command::CommitFiles => {
             cli.options.level = 0;
@@ -88,9 +87,23 @@ fn main() -> Result<()> {
         | Command::CallsiteCandidates
         | Command::TodoIndex
         | Command::OpsApply
+        | Command::OpsSkeleton
+        | Command::OpsSchema
+        | Command::OpsSplit
+        | Command::OpsVerify
+        | Command::OpsSummary
+        | Command::RangeForSymbol
+        | Command::AnchorRange
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
+        }
+        Command::OpsCheck if cli.options.strict && cli.options.level < 2 => {
+            cli.options.level = 2;
+        }
+        Command::OpsCheck => {
+            cli.options.level = 0;
+            cli.options.ai = false;
         }
         Command::Slice if cli.options.symbol.is_some() && cli.options.level < 2 => {
             cli.options.level = 2;
@@ -695,13 +708,22 @@ fn main() -> Result<()> {
             report::file_ops::ops_plan::print_ops_preview(
                 &cli.options.root,
                 cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
                 cli.options.limit,
             )?;
         }
         Command::OpsCheck => {
+            let map = if cli.options.strict {
+                Some(load_report_map(&cli.options)?)
+            } else {
+                None
+            };
             report::file_ops::ops_plan::print_ops_check(
                 &cli.options.root,
+                map.as_ref(),
                 cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.strict,
                 cli.options.limit,
             )?;
         }
@@ -715,7 +737,85 @@ fn main() -> Result<()> {
                 &cli.options.root,
                 &map,
                 cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
                 cli.options.write,
+                cli.options.backup,
+                cli.options.stop_on_error,
+                cli.options.limit,
+            )?;
+        }
+        Command::OpsSchema => {
+            report::file_ops::ops_schema::print_ops_schema(
+                cli.options.query.as_deref(),
+                cli.options.json,
+            )?;
+        }
+        Command::OpsSplit => {
+            report::file_ops::ops_reports::print_ops_split(
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.by.as_deref(),
+            )?;
+        }
+        Command::OpsVerify => {
+            report::file_ops::ops_reports::print_ops_verify(
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.run,
+            )?;
+        }
+        Command::OpsSummary => {
+            report::file_ops::ops_reports::print_ops_summary(
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.changed_only,
+            )?;
+        }
+        Command::OpsSkeleton => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("ops-skeleton requires a query"))?;
+            report::file_ops::ops_skeleton::print_ops_skeleton(
+                &map,
+                query,
+                &cli.options.out,
+                cli.options.write,
+                cli.options.limit,
+            )?;
+        }
+        Command::RangeForSymbol => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("range-for-symbol requires a query"))?;
+            report::file_ops::range_for_symbol::print_range_for_symbol(
+                &map,
+                query,
+                cli.options.limit,
+            )?;
+        }
+        Command::AnchorRange => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("anchor-range requires a query"))?;
+            let to = cli
+                .options
+                .to
+                .as_ref()
+                .map(|path| path.to_string_lossy().to_string());
+            report::file_ops::anchor_range::print_anchor_range(
+                &cli.options.root,
+                &map,
+                query,
+                to.as_deref(),
                 cli.options.limit,
             )?;
         }

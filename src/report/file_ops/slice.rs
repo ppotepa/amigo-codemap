@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use crate::model::{CodeMap, SymbolEntry};
+use crate::model::{CodeMap, FileEntry, SymbolEntry};
+use crate::scan::language_for;
 
 use super::common::{
     find_file_by_path, import_block, is_changed, line_window, read_text_at_root, slash_path,
@@ -18,8 +19,14 @@ pub fn print_slice(
     line_range: Option<&str>,
     radius: usize,
 ) -> Result<()> {
-    let file = find_file_by_path(map, query)
-        .ok_or_else(|| anyhow::anyhow!("slice requires an existing file path: {query}"))?;
+    let fallback_file;
+    let file = if let Some(file) = find_file_by_path(map, query) {
+        file
+    } else {
+        fallback_file = resolve_existing_file(root, query)?
+            .ok_or_else(|| anyhow::anyhow!("slice requires an existing file path: {query}"))?;
+        &fallback_file
+    };
     let path = file.path.clone();
     let text = read_text_at_root(root, &path)?;
     let symbols = symbols_in_file(map, &file.id);
@@ -152,6 +159,36 @@ pub fn print_slice(
     });
 
     Ok(())
+}
+
+fn resolve_existing_file(root: &Path, query: &str) -> Result<Option<FileEntry>> {
+    let candidate = root.join(query);
+    if !candidate.is_file() {
+        return Ok(None);
+    }
+
+    let root = root.canonicalize()?;
+    let canonical = candidate.canonicalize()?;
+    if !canonical.starts_with(&root) {
+        anyhow::bail!("slice path must stay inside repository root: {query}");
+    }
+
+    let relative = canonical
+        .strip_prefix(&root)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(query));
+    let text = std::fs::read_to_string(&canonical)?;
+    let metadata = std::fs::metadata(&canonical)?;
+
+    Ok(Some(FileEntry {
+        id: format!("external:{}", slash_path(&relative)),
+        path: relative.clone(),
+        language: language_for(&relative),
+        lines: text.lines().count(),
+        hash: "external".to_string(),
+        size: metadata.len(),
+        tags: vec!["state:external".to_string()],
+    }))
 }
 
 fn parse_line_range(value: &str) -> Result<(usize, usize)> {

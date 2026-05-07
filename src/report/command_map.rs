@@ -385,7 +385,113 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/cli.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
         ],
-        related: &["ops-check", "patch-apply"],
+        related: &["ops-check", "ops-skeleton", "patch-apply"],
+    },
+    CommandDescriptor {
+        name: "ops-skeleton",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_skeleton.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_skeleton.rs",
+        ],
+        related: &[
+            "ops-schema",
+            "ops-preview",
+            "ops-check",
+            "ops-apply",
+            "range-for-symbol",
+        ],
+    },
+    CommandDescriptor {
+        name: "ops-schema",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_schema.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_schema.rs",
+        ],
+        related: &["ops-skeleton", "ops-check", "ops-preview"],
+    },
+    CommandDescriptor {
+        name: "ops-split",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_reports.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["ops-preview", "ops-summary", "ops-apply"],
+    },
+    CommandDescriptor {
+        name: "ops-verify",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_reports.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["ops-check", "ops-apply", "verify-plan"],
+    },
+    CommandDescriptor {
+        name: "ops-summary",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_reports.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["ops-preview", "ops-verify", "operations-summary"],
+    },
+    CommandDescriptor {
+        name: "range-for-symbol",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/range_for_symbol.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/range_for_symbol.rs",
+        ],
+        related: &["signature", "slice", "ops-skeleton", "ops-check"],
+    },
+    CommandDescriptor {
+        name: "anchor-range",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/anchor_range.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["anchors", "anchor-check", "ops-check"],
     },
     CommandDescriptor {
         name: "change-plan",
@@ -646,6 +752,37 @@ mod tests {
     #[test]
     fn catalog_contains_ops_apply() {
         assert!(COMMANDS.iter().any(|command| command.name == "ops-apply"));
+    }
+
+    #[test]
+    fn catalog_contains_ops_skeleton() {
+        assert!(
+            COMMANDS
+                .iter()
+                .any(|command| command.name == "ops-skeleton")
+        );
+    }
+
+    #[test]
+    fn catalog_contains_range_for_symbol() {
+        assert!(
+            COMMANDS
+                .iter()
+                .any(|command| command.name == "range-for-symbol")
+        );
+    }
+
+    #[test]
+    fn catalog_contains_yaml_ops_helpers() {
+        for name in [
+            "ops-schema",
+            "ops-split",
+            "ops-verify",
+            "ops-summary",
+            "anchor-range",
+        ] {
+            assert!(COMMANDS.iter().any(|command| command.name == name));
+        }
     }
 
     #[test]

@@ -1,3 +1,4 @@
+pub mod anchor_range;
 pub mod append_plan;
 pub mod asset_file_check;
 pub mod barrel_check;
@@ -16,9 +17,13 @@ pub mod large_files;
 pub mod model;
 pub mod open_set;
 pub mod ops_plan;
+pub mod ops_reports;
+pub mod ops_schema;
+pub mod ops_skeleton;
 pub mod orphan_files;
 pub mod patch_apply;
 pub mod patch_preview;
+pub mod range_for_symbol;
 pub mod rename_plan;
 pub mod shim_check;
 pub mod slice;
