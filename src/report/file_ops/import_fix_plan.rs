@@ -331,6 +331,7 @@ mod tests {
                     lines: 2,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -339,6 +340,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -362,6 +364,7 @@ mod tests {
                     },
                 ],
             },
+            ..Default::default()
         };
 
         let report = build_import_fix_report(root.as_path(), &map, true, 20)
@@ -401,6 +404,7 @@ mod tests {
                     lines: 2,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -409,6 +413,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -432,6 +437,7 @@ mod tests {
                     },
                 ],
             },
+            ..Default::default()
         };
 
         assert_eq!(

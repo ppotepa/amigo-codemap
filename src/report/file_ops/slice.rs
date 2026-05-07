@@ -22,6 +22,18 @@ pub fn print_slice(
     let path = file.path.clone();
     let text = read_text_at_root(root, &path)?;
     let symbols = symbols_in_file(map, &file.id);
+    if let Some(symbol_name) = symbol {
+        let Some(target) = symbols.iter().find(|entry| entry.name == symbol_name) else {
+            anyhow::bail!("symbol not found in {}: {}", slash_path(&path), symbol_name);
+        };
+        for (index, line_text) in text.lines().enumerate() {
+            let line_no = index + 1;
+            if line_no >= target.line && line_no <= target.line_end {
+                println!("{line_no}: {line_text}");
+            }
+        }
+        return Ok(());
+    }
     let target = symbol
         .and_then(|name| symbols.iter().find(|entry| entry.name == name))
         .or_else(|| symbols.first());

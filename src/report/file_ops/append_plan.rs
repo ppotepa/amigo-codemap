@@ -432,6 +432,7 @@ mod tests {
                 lines: 12,
                 hash: "x".to_string(),
                 size: 12,
+                ..Default::default()
             }],
             packages: vec![],
             symbols: vec![SymbolEntry {
@@ -440,10 +441,12 @@ mod tests {
                 file_id: "f1".to_string(),
                 line: 8,
                 visibility: "export".to_string(),
+                ..Default::default()
             }],
             dependencies: vec![],
             areas: vec![],
             git: GitInfo::default(),
+            ..Default::default()
         };
 
         let anchors = detect_anchors(
@@ -477,6 +480,7 @@ mod tests {
                     lines: 100,
                     hash: "a".to_string(),
                     size: 100,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "b".to_string(),
@@ -485,6 +489,7 @@ mod tests {
                     lines: 60,
                     hash: "b".to_string(),
                     size: 60,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "c".to_string(),
@@ -493,6 +498,7 @@ mod tests {
                     lines: 300,
                     hash: "c".to_string(),
                     size: 300,
+                    ..Default::default()
                 },
             ],
             packages: vec![],
@@ -500,6 +506,7 @@ mod tests {
             dependencies: vec![],
             areas: vec![],
             git: GitInfo::default(),
+            ..Default::default()
         };
 
         let donors = donor_candidates(&map, &map.files[0], 4);

@@ -1,201 +1,997 @@
-# amigo-codemap
+# amigo-codemap 0.1 Documentation
 
-Workspace code map generator for LLM-assisted development.
+`amigo-codemap` is the operational navigation and planning layer for the Amigo repository. It helps humans and LLM agents answer "where is this?", "what does this affect?", "what should I read?", and "how can I safely apply this change?" before opening large files or running broad text searches.
 
-## Responsibility
-- Build a compact, language-agnostic index of workspace structure.
-- Use existing project metadata such as Cargo and package manifests.
-- Emit compact summaries for implementation planning and navigation.
-- Provide small task-focused reports before an LLM reads file contents.
+It does not replace the compiler, tests, or code review. It replaces a large part of the repetitive discovery work usually done with `rg`, manual file browsing, and ad-hoc patch planning.
 
-## Not here
-- Engine or editor domain knowledge.
-- Rust or TypeScript semantic analysis owned by this project.
-- Runtime code generation.
+## Quickstart
 
-## Depends on
-- cargo metadata.
-- serde.
-- serde_json.
-
-## Commands
-- `brief` - tiny repo summary.
-- `compact` - compact JSON written to `.amigo/codemap.json`.
-- `changed --group path|package|language|status` - grouped dirty worktree summary.
-- `files [--query tag1,tag2]` - list files with generated tags and optional filtering/grouping.
-- `find <text>` - literal search across indexed text files.
-- `scope <query>` - small context for a file, area, package, or symbol.
-- `refs <query>` - definitions plus text references, including CSS selectors at level 2.
-- `docs` - README coverage for workspace packages.
-- `command-map <name>` - points to CLI, dispatch, implementation, docs, and tests for one codemap command.
-- `verify <profile>` - capped command output for `npm-build`, `npm-test`, `cargo-check`, or `cargo-test`.
-
-## Refactor reports
-
-These commands provide compact operational context for LLM-assisted refactors.
-
-- `verify-plan --changed` - suggests the smallest useful verification commands.
-- `stale --patterns a,b,c` - finds stale aliases, placeholders, old names, and cleanup candidates.
-- `impact <symbol> --group feature` - groups direct refs and likely affected areas.
-- `fallout [--from file]` - summarizes TypeScript/Rust build output.
-- `move-plan <file> --by tauri-command|symbol` - suggests split groups and move risks.
-- `dup [symbol]` - finds duplicate helpers by symbol name and simple normalized bodies.
-- `tauri-commands` - checks command definitions against `generate_handler!`.
-- `service-shape <TypeName>` - groups service bag fields by usage.
-- `registry-check [kind]` - checks known editor registries.
-- `operations-summary` - summarizes costly tasks from `operations.md`.
-- `commit-summary --changed` - creates a compact change summary.
-- `append-plan <file> [--task name]` - suggests append anchors, donor files, and companion files for additive edits.
-- `copy-plan <target> [--from donor] [--task name]` - picks a donor file, rename hotspots, and mirrored companion files for copy-driven edits.
-- `slice <file> --symbol <name> [--radius N]` - compact file fragment around one symbol.
-- `diff-scope` - changed files summary by symbols and import-level risk.
-- `delete-plan <file> [--changed]` - checks whether file can be removed safely.
-- `file-move-plan <from> --to <to>` - estimates import fallout and inbound imports.
-- `rename-plan <old> --to <new> [--group feature]` - exact vs partial rename hits.
-- `import-fix-plan [--changed]` - finds missing/stale relative imports.
-- `open-set <symbol> [--task migrate]` - proposes best file-read order and skips low-value docs/fixtures.
-- `workset <name> [--from-impact symbol] [--save|--status]` - manage long refactor context (manifest).
-- `barrel-check <dir>` - checks export barrels and duplicates.
-- `orphan-files <dir>` - finds files without inbound usage.
-- `shim-check [--changed]` - flags tiny files that are probably shims.
-- `large-files [--top N] [--with-split-hints]` - ranking for future split candidates.
-- `asset-file-check <mod>` - checks YAML asset ids and source references.
-- `case-check [--changed]` - catches case-sensitive import collisions.
-- `text-check [--changed]` - line endings/BOM/binary/text quick pass.
-- `patch-preview --from patch.diff` - summaries changed symbols and risk before apply.
-- `patch-check --from patch.diff` - dry-runs a unified diff against the workspace.
-- `patch-apply --from patch.diff --write` - applies exact unified diff hunks to workspace files.
-- `commit-files [--changed]` - suggests logical commit bundles.
-
-## Examples
-```powershell
-cargo run -p amigo-codemap -- brief
-cargo run -p amigo-codemap -- changed --group package --limit 20
-cargo run -p amigo-codemap -- files --query layer:app,kind:source --limit 40
-cargo run -p amigo-codemap -- find "AssetTreePanel" --limit 20
-cargo run -p amigo-codemap -- scope AssetTreePanel --limit 30
-cargo run -p amigo-codemap -- refs asset-tree-section --limit 20
-cargo run -p amigo-codemap -- docs
-cargo run -p amigo-codemap -- command-map append-plan
-cargo run -p amigo-codemap -- command-map copy-plan
-cargo run -p amigo-codemap -- verify-plan --changed
-cargo run -p amigo-codemap -- impact EditorSelectionRef --group feature --limit 80
-cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection
-cargo run -p amigo-codemap -- move-plan crates/apps/amigo-editor/src-tauri/src/commands/mod.rs --by tauri-command
-npm run build 2>&1 | cargo run -p amigo-codemap -- fallout --limit 80
-cargo run -p amigo-codemap -- tauri-commands
-cargo run -p amigo-codemap -- diff-scope --changed --limit 80
-cargo run -p amigo-codemap -- open-set EditorSelectionRef --task migrate --limit 12
-cargo run -p amigo-codemap -- append-plan crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx --task component-definition --limit 12
-cargo run -p amigo-codemap -- copy-plan crates/apps/amigo-editor/src/startup/NewPanel.tsx --from crates/apps/amigo-editor/src/startup/ModsPanel.tsx --task panel --limit 12
-cargo run -p amigo-codemap -- file-move-plan crates/apps/amigo-editor/src/assets/AssetTreePanel.tsx --to crates/apps/amigo-editor/src/features/assets/AssetTreePanel.tsx
-cargo run -p amigo-codemap -- workset selection-migration --from-impact EditorSelectionRef --save
-cargo run -p amigo-codemap -- workset selection-migration --status
-cargo run -p amigo-codemap -- large-files --top 20 --with-split-hints
-cargo run -p amigo-codemap -- stale --patterns workspacePanels,createEditorSelection --limit 80
-cargo run -p amigo-codemap -- delete-plan crates/apps/amigo-editor/src/main-window/workspacePanels.tsx
-cargo run -p amigo-codemap -- import-fix-plan --changed
-cargo run -p amigo-codemap -- patch-preview --from patch.diff
-cargo run -p amigo-codemap -- patch-check --from patch.diff
-cargo run -p amigo-codemap -- patch-apply --from patch.diff --write
-cargo run -p amigo-codemap -- commit-files --changed
-cargo run -p amigo-codemap -- commit-summary --changed
-```
-
-## How to use `command-map`, `append-plan`, and `copy-plan`
-
-### `command-map`
-
-Use `command-map <name>` when you are extending `amigo-codemap` itself and do not want to fall back to manual repo search.
+Build the tool:
 
 ```powershell
-cargo run -p amigo-codemap -- command-map copy-plan
+cargo build -p amigo-codemap
 ```
 
-Read the output in this order:
-- `cli` - where the command is parsed.
-- `dispatch` - where `main.rs` routes it.
-- `implementation` - the actual report file.
-- `docs` - README/workflow entries to update.
-- `tests` - the narrowest tests to extend or run.
-
-Default workflow:
-1. run `command-map <name>`
-2. read `cli`, then `dispatch`, then `implementation`
-3. edit code
-4. update docs from the `docs` list
-5. run the targeted tests from the `tests` list
-
-### `append-plan`
-
-Use `append-plan <file> --task ...` when the target file already exists and you want to add a new block, registry entry, route, style rule, or test case.
+Optionally create a short alias for the current PowerShell session:
 
 ```powershell
-cargo run -p amigo-codemap -- append-plan crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx --task component-definition --limit 12
+$cm = "target\debug\amigo-codemap.exe"
 ```
 
-How to read it:
-- `append anchors` - preferred insert points; use the first structural anchor instead of blind EOF append.
-- `symbol context` - nearby top-level declarations in the file.
-- `donor candidates` - similar files to borrow a small pattern from.
-- `companion files` - likely follow-up files for imports, registration, or styles.
-
-Default workflow:
-1. run `append-plan`
-2. pick the first structural anchor
-3. read one donor candidate only if the change is mechanical
-4. check companion files before saving
-5. run the suggested verify commands
-
-### `copy-plan`
-
-Use `copy-plan <target> [--from donor] [--task ...]` when you want to create a new file from an existing pattern or transplant a larger block from a known donor file.
+Run the default navigation loop:
 
 ```powershell
-cargo run -p amigo-codemap -- copy-plan crates/apps/amigo-editor/src/startup/NewPanel.tsx --from crates/apps/amigo-editor/src/startup/ModsPanel.tsx --task panel --limit 12
+& $cm brief
+& $cm changed --group package --limit 20
+& $cm trace patch-apply --limit 20
+& $cm open-set patch-apply --why --limit 10
+& $cm impact patch-apply --limit 30
+& $cm verify-plan --changed
 ```
 
-How to read it:
-- `selected donor` - the file to copy from; if you do not pass `--from`, the report ranks one for you.
-- `alternate donors` - backup options; usually you should not read more than the top 1-2.
-- `rename hotspots` - names, symbols, and relative imports to fix first.
-- `mirrored companion files` - CSS/tests/helpers that may need a sibling copy.
-- `target anchors` - where to insert the copied block if the target file already exists.
+For most tasks, start with:
 
-Default workflow:
-1. run `copy-plan`
-2. accept the top donor unless you have a clear reason not to
-3. rename hotspots before cleaning imports and props
-4. if the target already exists, run `append-plan <target>` before inserting the copied block
-5. add mirrored companion files only if the donor really depends on them
+```powershell
+& $cm change-plan <query> --limit 20
+& $cm trace <thing> --limit 20
+& $cm open-set <thing> --why --limit 10
+```
 
-## Problem to command
+## What amigo-codemap Is
 
-| Problem | First command | Follow-up |
-| --- | --- | --- |
-| What changed? | `changed --group package` | `diff-scope --changed` |
-| What should I verify? | `verify-plan --changed` | `fallout --from ...` |
-| Where is this codemap command wired? | `command-map <name>` | `scope` on the reported files |
-| What files should I read first? | `open-set <symbol> --task migrate` | `slice <file> --symbol <name>` |
-| Where should I append a new block or registry entry? | `append-plan <file> --task ...` | `open-set <symbol>` |
-| What donor file should I copy and what must I rename? | `copy-plan <target> --task ...` | `append-plan <target>` |
-| Can this pasted unified diff apply cleanly? | `patch-check --from patch.diff` | `patch-apply --from patch.diff --write` |
-| What does a symbol change affect? | `impact <symbol> --group feature` | `workset <name> --from-impact <symbol> --save` |
-| Can I delete this file? | `delete-plan <file>` | `stale --patterns ...` |
-| What breaks if I move this file? | `file-move-plan <from> --to <to>` | `import-fix-plan --changed` |
-| Which imports are stale or missing? | `import-fix-plan --changed` | `npm run build` + `fallout` |
-| Which files are probably dead shims? | `orphan-files <dir>` | `shim-check --changed` |
-| Which big file should I split next? | `large-files --top 20 --with-split-hints` | `move-plan <file>` |
-| How should I split the work into commits? | `commit-files --changed` | `commit-summary --changed` |
+`amigo-codemap` builds and reads an operational snapshot of the repository. The snapshot contains files, file tags, symbols, symbol metadata, text occurrences, relationships, git state, and command/workflow hints.
 
-## Manual test scenarios
+The goal is simple:
 
-Repository root also contains `codemap-tests/` with three multi-step scenarios:
-- `001-symbol-migration`
-- `002-file-ops-cleanup`
-- `003-large-file-split`
+```text
+Do less searching.
+Open fewer files.
+Read smaller slices.
+Plan changes before editing.
+Verify changes predictably.
+```
 
-Each scenario includes:
-- `task.md` with the command sequence,
-- `result.md` for token and workflow notes,
-- shared rollup in `codemap-tests/summary.md`.
+A typical old workflow looks like this:
+
+```powershell
+rg "SelectionProperties"
+Get-Content crates/apps/amigo-editor/src/properties/SelectionProperties.tsx
+rg "SelectionProperties" crates/apps/amigo-editor/src
+rg "entity.inspector"
+rg "invoke"
+```
+
+A codemap-first workflow looks like this:
+
+```powershell
+& $cm where SelectionProperties
+& $cm signature SelectionProperties
+& $cm trace entity.inspector
+& $cm open-set entity.inspector --why
+& $cm impact SelectionProperties
+```
+
+The important difference: `codemap` tries to explain structure and next steps, not just dump matching text.
+
+## Mental Model
+
+### Snapshot
+
+The snapshot is the indexed view of the repository. It stores enough metadata for navigation without opening source files first.
+
+Typical snapshot data:
+
+```text
+files
+symbols
+text occurrences
+relations
+tags
+git state
+packages
+areas
+```
+
+### File
+
+A file entry contains path, language, line count, hash, size, tags, and git state.
+
+Example file tags:
+
+```text
+layer:app
+layer:tool
+layer:engine
+kind:source
+kind:test
+kind:config
+domain:workspace
+domain:codemap
+state:changed
+risk:large
+```
+
+### Symbol
+
+A symbol is a structural code item, for example a function, method, component, hook, struct, enum, interface, type, const, module, Rhai function, YAML key-like symbol, or CSS selector.
+
+A symbol entry should know:
+
+```text
+name
+kind
+file
+line range
+signature
+params
+return type
+generics
+visibility
+owner
+tags
+confidence
+```
+
+### Text Occurrence
+
+A text occurrence is not necessarily a symbol. It is a meaningful string, key, ID, selector, or config value.
+
+Examples:
+
+```text
+"entity.inspector"
+"send_editor_pointer_event"
+"scene.yml"
+"main-menu"
+".workspace-panel"
+```
+
+Text occurrences matter because modern app logic often connects through IDs, config, scene files, command names, CSS classes, or YAML values.
+
+### Relation
+
+A relation describes a connection:
+
+```text
+file imports file
+symbol references symbol
+frontend invokes backend command
+scene references asset
+component uses component
+```
+
+0.1 relations are heuristic navigation hints, not compiler truth.
+
+### Anchor
+
+An anchor is a deliberate marker for codemap navigation.
+
+```ts
+// @codemap anchor:workspace-dock domain:workspace role:registry
+```
+
+```rust
+// @codemap anchor:editor-mode-pointer domain:editor-mode role:command
+```
+
+```yaml
+# @codemap anchor:main-menu-scene domain:menu role:scene
+```
+
+Use anchors for important registries, command maps, pipelines, central dispatchers, or places that are hard to discover automatically.
+
+### Workset
+
+A workset is a saved scope of work: files, symbols, reasons, risks, and verification commands. It prevents repeated discovery across multiple edits.
+
+```powershell
+& $cm workset ui-document-inspector --from-impact UiDocumentEditor --save
+& $cm workset ui-document-inspector --status
+```
+
+## What Codemap Replaces
+
+| Old workflow | Problem | Codemap command | Benefit |
+| --- | --- | --- | --- |
+| `rg "Foo"` | Raw matches, no meaning | `where Foo` | Finds definitions and references |
+| Open full file | Expensive context | `slice <file> --symbol Foo` | Reads only the relevant symbol |
+| `rg "entity.inspector"` | Hard to know what the string means | `trace entity.inspector` | Classifies string/id/config usage |
+| Manually inspect imports | Slow and noisy | `neighbors <file>` | Shows nearby related files |
+| Guess files to read | Over-opens context | `open-set <query> --why` | Ranked file list with reasons |
+| Guess breakage | Missed callsites | `impact <query>` | Shows direct/text/config impact |
+| Guess tests | Inconsistent verification | `verify-plan --changed` | Suggests verification steps |
+| Manual patching | Fragile edits | `patch-check` / `ops-check` | Validates before writing |
+| Huge diff in prompt | Token-heavy | `ops-*` | Compact declarative operations |
+| Repeat research each turn | Wasted tokens | `workset` | Saves task scope |
+
+## Recommended Daily Loop
+
+Use this for most coding tasks:
+
+```powershell
+cargo build -p amigo-codemap
+
+$cm = "target\debug\amigo-codemap.exe"
+
+& $cm changed --group package --limit 20
+& $cm change-plan <query> --limit 20
+& $cm trace <thing> --limit 20
+& $cm open-set <thing> --why --limit 10
+& $cm signature <symbol>
+& $cm slice <file> --symbol <symbol>
+& $cm impact <symbol-or-query> --limit 30
+& $cm verify-plan --changed
+```
+
+### Step 1: Check Changed Scope
+
+```powershell
+& $cm changed --group package --limit 20
+```
+
+Use when starting a new task, continuing after patches, or checking what is dirty.
+
+### Step 2: Build A Task Plan
+
+```powershell
+& $cm change-plan ui-document-inspector --limit 20
+```
+
+Expected sections:
+
+```text
+scope
+symbols
+text/config
+suggested commands
+verify
+```
+
+### Step 3: Trace Unknown Things
+
+```powershell
+& $cm trace entity.inspector --limit 20
+```
+
+Use when the query may be a symbol, string literal, dock ID, scene ID, asset ID, CSS class, Tauri command, Rhai function, YAML key, or YAML value.
+
+### Step 4: Get A Ranked Read List
+
+```powershell
+& $cm open-set entity.inspector --why --limit 10
+```
+
+Run this before opening files. Treat the reasons as ranking hints, not proof.
+
+### Step 5: Inspect A Symbol Without Opening The File
+
+```powershell
+& $cm signature SelectionProperties
+```
+
+Use when you need signature, parameters, return type, generics, visibility, owner, and line range.
+
+### Step 6: Read Only The Relevant Symbol
+
+```powershell
+& $cm slice crates/apps/amigo-editor/src/properties/SelectionProperties.tsx --symbol SelectionProperties
+```
+
+Use when the file is large or only one function/method/component matters.
+
+### Step 7: Check Impact
+
+```powershell
+& $cm impact SelectionProperties --limit 30
+```
+
+Expected sections:
+
+```text
+direct impact
+text/config impact
+likely affected
+tests
+verify
+```
+
+### Step 8: Verify
+
+```powershell
+& $cm verify-plan --changed
+```
+
+Then run the suggested build and tests. Compiler/tests remain final truth.
+
+## Problem To Command
+
+| Problem | Command | PowerShell example | Expected result |
+| --- | --- | --- | --- |
+| I have a symbol name and need its definition | `where` | `& $cm where CodeMap` | Definitions, line ranges, references |
+| I need the type/signature | `signature` | `& $cm signature scan_symbols` | Params, return type, owner, visibility |
+| I have a string or ID | `trace` | `& $cm trace entity.inspector` | Meaning, occurrences, related files |
+| I do not know which files to open | `open-set --why` | `& $cm open-set ui-document --why` | Ranked files with reasons |
+| I need the method list from one file | `symbols --file --metadata` | `& $cm symbols --file src/foo.rs --metadata` | Symbols, ranges, params, returns, tags |
+| I want only one method/component | `slice --symbol` | `& $cm slice src/foo.rs --symbol parse` | Only that symbol's code |
+| I want to know what may break | `impact` | `& $cm impact send_editor_pointer_event` | Direct and likely affected areas |
+| I want a full task plan | `change-plan` | `& $cm change-plan editor-mode-pointer` | Scope, symbols, next commands, verify |
+| I want related files | `neighbors` | `& $cm neighbors src/main.rs` | Imports, relations, same-domain files |
+| I want to understand a file | `explain-file` | `& $cm explain-file src/main.rs` | File role, tags, symbols, occurrences |
+| I want public/export API | `api-surface` | `& $cm api-surface --limit 50` | Public/export symbols |
+| I want TSX component overview | `component-graph` | `& $cm component-graph --limit 50` | Components, props/signatures |
+| I want frontend/backend Tauri flow | `tauri-graph` | `& $cm tauri-graph --limit 50` | Invokes, backend commands, DTO hints |
+| I want likely callsites | `callsite-candidates` | `& $cm callsite-candidates scan_symbols` | Heuristic callsite list |
+| I want TODO/risk scope | `todo-index` / `risk-index` | `& $cm risk-index --limit 30` | Indexed TODO/risk/large/changed files |
+| I want to apply changes safely | `patch-check` / `ops-check` | `& $cm ops-check --from plan.yml` | Validates before write |
+| I want to save scope | `workset` | `& $cm workset ui-doc --from-impact UiDocumentEditor --save` | Saved task context |
+
+## Command Reference
+
+### `brief`
+
+Show a compact overview of the repository snapshot.
+
+```powershell
+& $cm brief
+```
+
+Use when starting work, checking whether codemap sees the repo, or orienting a new agent.
+
+### `scan`
+
+Build or print the codemap snapshot.
+
+```powershell
+& $cm scan --level 2 --pretty
+```
+
+Recommended levels:
+
+```text
+level 0: files only
+level 1: public/export symbols
+level 2: symbols + text occurrences
+level 3: deeper relation/report context
+```
+
+### `changed`
+
+Show changed files using git state.
+
+```powershell
+& $cm changed --group package --limit 20
+```
+
+Typical next commands:
+
+```powershell
+& $cm open-set <changed-area> --why
+& $cm verify-plan --changed
+```
+
+### `files`
+
+Filter files by tags, language, domain, layer, and state.
+
+```powershell
+& $cm files --query layer:app,kind:source --limit 30
+& $cm files --query domain:workspace,state:changed --limit 30
+& $cm files --query lang:tsx,!kind:test --limit 30
+```
+
+Common query tags:
+
+```text
+layer:app
+layer:tool
+kind:source
+kind:test
+domain:workspace
+domain:codemap
+state:changed
+lang:rs
+lang:tsx
+!kind:test
+```
+
+### `symbols`
+
+List symbols with metadata.
+
+```powershell
+& $cm symbols --query name:CodeMap --limit 20
+& $cm symbols --query kind:component,visibility:export --limit 20
+& $cm symbols --query lang:rs,kind:fn --limit 20
+& $cm symbols --file crates/tools/amigo-codemap/src/scan/symbols.rs --metadata --limit 20
+```
+
+Use `--file <path>` to list symbols from one file. Use `--metadata` when you need params, return type, generics, owner, tags, confidence, and line ranges.
+
+Recommended workflow for a large file:
+
+```powershell
+& $cm symbols --file crates/tools/amigo-codemap/src/scan/symbols.rs --metadata --limit 40
+& $cm slice crates/tools/amigo-codemap/src/scan/symbols.rs --symbol build_symbol
+```
+
+Example metadata output:
+
+```text
+fn build_symbol
+  file: crates/tools/amigo-codemap/src/scan/symbols.rs
+  range: 233-269 (37 lines)
+  visibility: local
+  owner: -
+  confidence: 75
+  params: file: &FileEntry, name: String, kind: String, line: usize, visibility: String, owner: Option<String>, extracted: ExtractedSignature, mut tags: Vec<String>
+  returns: SymbolEntry
+  generics: -
+  tags: domain:codemap, ext:rs, kind:fn, kind:source, lang:rs, layer:tool, risk:large, state:clean, visibility:local
+  signature: fn build_symbol(...) -> SymbolEntry
+```
+
+Language behavior:
+
+```text
+Rust/TS/TSX: functions, methods, types, components, params, returns, generics where detected.
+Rhai: functions with lightweight signatures.
+YAML: key-like symbols; params/returns are usually empty.
+CSS: selectors as symbols; params/returns are empty.
+JSON/TOML/Markdown: mostly text/config navigation via trace and explain-file, not rich symbols.
+```
+
+### `where`
+
+Find where a symbol lives and where it is referenced.
+
+```powershell
+& $cm where SelectionProperties --limit 10
+```
+
+Use this instead of raw `rg` when the query is a known symbol.
+
+### `signature`
+
+Show signature and metadata for a symbol without opening the file.
+
+```powershell
+& $cm signature scan_symbols
+```
+
+Typical output includes:
+
+```text
+file
+range
+visibility
+owner
+params
+returns
+generics
+tags
+signature
+```
+
+For 0.1, signatures are heuristic for complex declarations, but they are good enough to avoid many full-file reads.
+
+### `trace`
+
+Trace a symbol, string, ID, command, scene, asset, CSS class, or config value.
+
+```powershell
+& $cm trace entity.inspector --limit 20
+```
+
+Expected sections:
+
+```text
+matched symbols
+matched text occurrences
+matched anchors
+likely meaning
+related files
+next
+```
+
+### `open-set`
+
+Suggest which files to open, in order.
+
+```powershell
+& $cm open-set entity.inspector --why --limit 10
+```
+
+The `--why` flag prints scoring reasons such as symbol match, text occurrence, anchor, changed state, domain tag, or risk tag.
+
+### `slice`
+
+Print only a portion of a file.
+
+```powershell
+& $cm slice crates/tools/amigo-codemap/src/scan/symbols.rs --symbol scan_symbols
+```
+
+Use after `signature` or `open-set --why`.
+
+### `impact`
+
+Estimate what may be affected by a change.
+
+```powershell
+& $cm impact SelectionProperties --limit 30
+```
+
+Expected sections:
+
+```text
+direct impact
+text/config impact
+likely affected
+tests
+verify
+```
+
+### `verify-plan`
+
+Suggest verification commands based on changed files.
+
+```powershell
+& $cm verify-plan --changed
+```
+
+Always run compiler/tests. Codemap is a planner, not final truth.
+
+### `workset`
+
+Save and inspect task scope.
+
+```powershell
+& $cm workset ui-document-inspector --from-impact UiDocumentEditor --save
+& $cm workset ui-document-inspector --status
+```
+
+Use when a task spans multiple turns or when you want to preserve why a file matters.
+
+## Patch And Ops Workflows
+
+### Unified Diff
+
+Use these when you already have a normal patch/diff:
+
+```powershell
+& $cm patch-preview --from patch.diff
+& $cm patch-check --from patch.diff
+& $cm patch-apply --from patch.diff --write
+```
+
+### Declarative Ops
+
+Use ops when a change is better described as file operations:
+
+```text
+create this file
+replace this line range
+delete this range
+insert after this anchor
+replace this symbol
+replace this method body
+```
+
+Always run:
+
+```powershell
+& $cm ops-preview --from plan.yml
+& $cm ops-check --from plan.yml
+& $cm ops-apply --from plan.yml --write
+```
+
+Stable operations for 0.1:
+
+```text
+create_file
+replace_file
+replace_range
+delete_range
+insert_after_anchor
+delete_file
+```
+
+Symbol-aware operations are implemented but should be treated as experimental until smoke-tested on the target file:
+
+```text
+replace_symbol
+delete_symbol
+insert_before_symbol
+insert_after_symbol
+replace_method_body
+```
+
+### Example: Replace A Line Range
+
+```yaml
+version: 1
+ops:
+  - kind: replace_range
+    path: tmp.txt
+    start_line: 2
+    end_line: 2
+    content: |
+      B
+```
+
+### Example: Create A File
+
+```yaml
+version: 1
+ops:
+  - kind: create_file
+    path: crates/apps/amigo-editor/src/example/NewPanel.tsx
+    content: |
+      export function NewPanel() {
+        return <section>New Panel</section>;
+      }
+```
+
+### Example: Insert After Anchor
+
+```yaml
+version: 1
+ops:
+  - kind: insert_after_anchor
+    path: crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx
+    anchor: "// @codemap anchor:properties-registry domain:properties role:registry"
+    content: |
+      import { UiDocumentPropertiesPanel } from "./panels/UiDocumentPropertiesPanel";
+```
+
+### Example: Replace Symbol, Experimental
+
+```yaml
+version: 1
+ops:
+  - kind: replace_symbol
+    path: crates/tools/amigo-codemap/src/scan/symbols.rs
+    symbol: scan_symbols
+    content: |
+      pub fn scan_symbols(...) -> Result<Vec<SymbolEntry>> {
+          todo!("new implementation")
+      }
+```
+
+Before symbol-aware ops, run:
+
+```powershell
+& $cm signature scan_symbols
+& $cm slice crates/tools/amigo-codemap/src/scan/symbols.rs --symbol scan_symbols
+& $cm ops-check --from plan.yml
+```
+
+Prefer, in order:
+
+```text
+symbol-aware operation, if stable
+anchor
+context_before/context_after
+expected_hash
+line range
+```
+
+## `@codemap` Anchors
+
+Anchors are explicit navigation markers.
+
+TypeScript / TSX:
+
+```ts
+// @codemap anchor:workspace-dock domain:workspace role:registry
+```
+
+Rust:
+
+```rust
+// @codemap anchor:editor-mode-pointer domain:editor-mode role:command
+```
+
+YAML:
+
+```yaml
+# @codemap anchor:main-menu-scene domain:menu role:scene
+```
+
+CSS:
+
+```css
+/* @codemap anchor:scene-editor-layout domain:scene-editor role:style */
+```
+
+Add anchors to central registries, large dispatchers, command maps, Tauri command registration, dock/component registries, scene transition points, important YAML scenes, generated/hand-maintained boundaries, and high-risk files.
+
+Do not add anchors to every function, obvious local helpers, temporary code, small files, or normal comments that already explain intent.
+
+## Language Support
+
+| Language / format | File indexing | Symbols | Text occurrences | Relations | Typical use |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Rust `rs` | yes | strong | yes | `mod/use` heuristic | backend, tools, engine, Tauri |
+| TypeScript `ts` | yes | strong | yes | imports | API, services, app logic |
+| TSX `tsx` | yes | strong | yes | imports/components heuristic | React components, docks, panels |
+| Rhai `rhai` | yes | functions | yes | light | scripts, scene behavior |
+| YAML/YML | yes | keys/scenes | strong | config refs | scenes, assets, prefabs |
+| TOML | yes | limited | yes | package/config | mod metadata, Cargo |
+| CSS | yes | selectors | strong | class refs heuristic | styles and class tracing |
+| JSON | yes | limited | yes | config | generated/config data |
+| Markdown | yes | limited | limited | docs refs | docs and planning |
+| HTML | yes | limited | ids/classes | light | app shell |
+
+0.1 is strongest for Rust, TypeScript, TSX, YAML, and Rhai trace workflows.
+
+## Scenarios
+
+### Change A UI Component But You Do Not Know Where To Start
+
+```powershell
+& $cm change-plan ui-document-inspector --limit 20
+& $cm trace ui-document-inspector --limit 20
+& $cm open-set ui-document-inspector --why --limit 10
+& $cm signature UiDocumentEditor
+& $cm slice crates/apps/amigo-editor/src/features/ui/UiDocumentEditor.tsx --symbol UiDocumentEditor
+& $cm impact UiDocumentEditor --limit 30
+& $cm verify-plan --changed
+```
+
+### You Found `entity.inspector`
+
+```powershell
+& $cm trace entity.inspector --limit 20
+& $cm open-set entity.inspector --why --limit 10
+& $cm impact entity.inspector --limit 30
+```
+
+### Change A Tauri Command
+
+```powershell
+& $cm trace send_editor_pointer_event --limit 20
+& $cm tauri-graph --limit 50
+& $cm where send_editor_pointer_event
+& $cm impact send_editor_pointer_event --limit 30
+& $cm verify-plan --changed
+```
+
+### Read Only One Method From A Large File
+
+```powershell
+& $cm symbols --file crates/tools/amigo-codemap/src/scan/symbols.rs --metadata --limit 40
+& $cm signature scan_symbols
+& $cm slice crates/tools/amigo-codemap/src/scan/symbols.rs --symbol scan_symbols
+```
+
+### Apply A Prepared Change Plan
+
+```powershell
+& $cm ops-preview --from .\plan.yml
+& $cm ops-check --from .\plan.yml
+& $cm ops-apply --from .\plan.yml --write
+& $cm verify-plan --changed
+```
+
+Then run actual verification:
+
+```powershell
+cargo fmt -p amigo-codemap
+cargo test -p amigo-codemap
+cargo build -p amigo-codemap
+```
+
+## Token Savings
+
+Codemap reduces token usage by reducing uncertainty.
+
+| Operation | Old token cost | Codemap approach | Effect |
+| --- | --- | --- | --- |
+| Find symbol | `rg` + multiple files | `where` / `signature` | Often no file read needed |
+| List methods in one file | full file read | `symbols --file --metadata` | Pick a symbol before reading code |
+| Understand string/id | raw `rg` output | `trace` | Meaning and related files |
+| Choose files | manual guessing | `open-set --why` | Open fewer files |
+| Read implementation | full file | `slice --symbol` | Read only target code |
+| Check impact | repeated search | `impact` | One structured report |
+| Apply changes | large diff in chat | `ops-*` | Compact operation format |
+| Continue task | repeat discovery | `workset` | Persistent scope |
+| Verify | guess tests | `verify-plan` | Consistent commands |
+
+Example:
+
+```text
+Old: open 8 files, each 300 lines = 2400 lines of context.
+New: trace -> open-set --why -> signature -> slice = 2 symbol slices, often under 100 lines.
+```
+
+## Stable Output Contract
+
+Reports should use predictable sections:
+
+```text
+scope
+findings
+definitions
+references
+text/config
+related files
+risks
+next
+verify
+```
+
+The `next:` section is important. It tells the agent what command to run next without another discovery pass.
+
+## Limitations In 0.1
+
+`amigo-codemap 0.1` is useful, but it is not magic.
+
+```text
+It is not an LSP.
+It does not replace rustc, TypeScript, tests, or code review.
+Some parsing is heuristic.
+Callsite candidates are not a full call graph.
+TSX component graph may be incomplete.
+Tauri graph may be heuristic.
+YAML/Rhai support is intentionally lighter than Rust/TS/TSX.
+Snapshot data can become stale.
+Line-based operations can be fragile.
+Symbol-aware operations should be treated as experimental unless validated by tests.
+```
+
+Always finish with compiler/tests.
+
+## Checklists
+
+### Before Changing Code
+
+```powershell
+& $cm changed --group package --limit 20
+& $cm change-plan <query> --limit 20
+& $cm trace <thing> --limit 20
+& $cm open-set <thing> --why --limit 10
+& $cm impact <thing> --limit 30
+```
+
+### Before Opening A Large File
+
+```powershell
+& $cm symbols --file <file> --metadata --limit 40
+& $cm signature <symbol>
+& $cm slice <file> --symbol <symbol>
+```
+
+### Before Applying A Patch
+
+```powershell
+& $cm patch-preview --from patch.diff
+& $cm patch-check --from patch.diff
+```
+
+### Before Applying Ops
+
+```powershell
+& $cm ops-preview --from plan.yml
+& $cm ops-check --from plan.yml
+```
+
+### After Changes
+
+```powershell
+cargo fmt -p amigo-codemap
+cargo test -p amigo-codemap
+cargo build -p amigo-codemap
+
+& $cm verify-plan --changed
+```
+
+## Minimal 0.1 Release Smoke Test
+
+Run this before calling the tool usable:
+
+```powershell
+cargo fmt -p amigo-codemap --check
+cargo test -p amigo-codemap --no-run
+cargo test -p amigo-codemap
+cargo build -p amigo-codemap
+
+$cm = "target\debug\amigo-codemap.exe"
+
+& $cm brief
+& $cm changed --group package --limit 20
+& $cm trace patch-apply --limit 20
+& $cm open-set patch-apply --why --limit 10
+& $cm impact patch-apply --limit 30
+& $cm verify-plan --changed
+```
+
+Optional ops smoke test:
+
+```powershell
+Set-Content -Encoding UTF8 .\tmp.txt "a`nb`nc`n"
+
+$plan = @"
+version: 1
+ops:
+  - kind: replace_range
+    path: tmp.txt
+    start_line: 2
+    end_line: 2
+    content: |
+      B
+"@
+Set-Content -Encoding UTF8 .\ops-test.yml $plan
+
+& $cm ops-preview --from .\ops-test.yml
+& $cm ops-check --from .\ops-test.yml
+& $cm ops-apply --from .\ops-test.yml --write
+Get-Content .\tmp.txt
+```
+
+Expected:
+
+```text
+a
+B
+c
+```
+
+## Short Command Cheat Sheet
+
+```powershell
+# Overview
+& $cm brief
+& $cm changed --group package
+
+# Files and symbols
+& $cm files --query layer:app,kind:source
+& $cm symbols --query name:CodeMap
+& $cm symbols --file <file> --metadata
+& $cm where CodeMap
+& $cm signature CodeMap
+
+# String/id tracing
+& $cm trace entity.inspector
+& $cm trace send_editor_pointer_event
+
+# Reading less code
+& $cm open-set entity.inspector --why
+& $cm slice <file> --symbol <symbol>
+
+# Planning and impact
+& $cm change-plan ui-document
+& $cm impact SelectionProperties
+& $cm verify-plan --changed
+
+# Safe edits
+& $cm patch-check --from patch.diff
+& $cm patch-apply --from patch.diff --write
+& $cm ops-check --from plan.yml
+& $cm ops-apply --from plan.yml --write
+
+# Navigation helpers
+& $cm explain-file <path>
+& $cm neighbors <path>
+& $cm api-surface
+& $cm component-graph
+& $cm tauri-graph
+& $cm callsite-candidates <symbol>
+
+# Quality
+& $cm todo-index
+& $cm risk-index
+```
+
+## Practical Rules
+
+1. Use `trace` for anything ambiguous.
+2. Use `where` for known symbols.
+3. Use `signature` before opening source.
+4. Use `open-set --why` before choosing files.
+5. Use `slice --symbol` before reading large files.
+6. Use `impact` before editing shared/public code.
+7. Use `ops-check` or `patch-check` before writing.
+8. Use `verify-plan --changed` after writing.
+9. Keep compiler/tests as final truth.
+10. Treat experimental graph/symbol-aware operations as helpers, not guarantees.

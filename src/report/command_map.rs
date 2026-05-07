@@ -34,6 +34,58 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["append-plan", "operations-summary", "docs"],
     },
     CommandDescriptor {
+        name: "symbols",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/symbols.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/symbols.rs",
+        ],
+        related: &["where", "signature", "trace"],
+    },
+    CommandDescriptor {
+        name: "where",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/where_symbol.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/where_symbol.rs",
+        ],
+        related: &["symbols", "signature", "trace", "open-set"],
+    },
+    CommandDescriptor {
+        name: "signature",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/signature.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/signature.rs",
+        ],
+        related: &["symbols", "where"],
+    },
+    CommandDescriptor {
+        name: "trace",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/trace.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/trace.rs",
+        ],
+        related: &["where", "signature", "open-set", "impact"],
+    },
+    CommandDescriptor {
         name: "append-plan",
         category: "file-ops",
         cli_paths: CLI_PATH,
@@ -194,6 +246,144 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["file-move-plan", "delete-plan", "fallout"],
     },
     CommandDescriptor {
+        name: "ops-preview",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-check", "ops-apply", "patch-check"],
+    },
+    CommandDescriptor {
+        name: "ops-check",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-preview", "ops-apply", "patch-check"],
+    },
+    CommandDescriptor {
+        name: "ops-apply",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-check", "patch-apply"],
+    },
+    CommandDescriptor {
+        name: "change-plan",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/change_plan.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["trace", "open-set", "impact", "verify-plan"],
+    },
+    CommandDescriptor {
+        name: "explain-file",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/explain_file.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["neighbors", "slice"],
+    },
+    CommandDescriptor {
+        name: "neighbors",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/neighbors.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["explain-file", "impact", "open-set"],
+    },
+    CommandDescriptor {
+        name: "api-surface",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/api_surface.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["signature", "where"],
+    },
+    CommandDescriptor {
+        name: "component-graph",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/component_graph.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["trace", "open-set", "neighbors"],
+    },
+    CommandDescriptor {
+        name: "tauri-graph",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/tauri_graph.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["trace", "impact", "api-surface"],
+    },
+    CommandDescriptor {
+        name: "callsite-candidates",
+        category: "navigation",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/callsite_candidates.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["impact", "where", "trace"],
+    },
+    CommandDescriptor {
+        name: "todo-index",
+        category: "quality",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/todo_index.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["risk-index", "stale"],
+    },
+    CommandDescriptor {
+        name: "risk-index",
+        category: "quality",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/risk_index.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["todo-index", "large-files", "commit-files"],
+    },
+    CommandDescriptor {
         name: "operations-summary",
         category: "summary",
         cli_paths: CLI_PATH,
@@ -329,5 +519,25 @@ mod tests {
     #[test]
     fn catalog_contains_patch_apply() {
         assert!(COMMANDS.iter().any(|command| command.name == "patch-apply"));
+    }
+
+    #[test]
+    fn catalog_contains_trace() {
+        assert!(COMMANDS.iter().any(|command| command.name == "trace"));
+    }
+
+    #[test]
+    fn catalog_contains_ops_apply() {
+        assert!(COMMANDS.iter().any(|command| command.name == "ops-apply"));
+    }
+
+    #[test]
+    fn catalog_contains_change_plan() {
+        assert!(COMMANDS.iter().any(|command| command.name == "change-plan"));
+    }
+
+    #[test]
+    fn catalog_contains_risk_index() {
+        assert!(COMMANDS.iter().any(|command| command.name == "risk-index"));
     }
 }

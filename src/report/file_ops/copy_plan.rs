@@ -648,6 +648,7 @@ mod tests {
                     lines: 120,
                     hash: "a".to_string(),
                     size: 120,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "b".to_string(),
@@ -656,6 +657,7 @@ mod tests {
                     lines: 80,
                     hash: "b".to_string(),
                     size: 80,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "c".to_string(),
@@ -664,6 +666,7 @@ mod tests {
                     lines: 20,
                     hash: "c".to_string(),
                     size: 20,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "d".to_string(),
@@ -672,6 +675,7 @@ mod tests {
                     lines: 300,
                     hash: "d".to_string(),
                     size: 300,
+                    ..Default::default()
                 },
             ],
             packages: vec![],
@@ -681,10 +685,12 @@ mod tests {
                 file_id: "b".to_string(),
                 line: 12,
                 visibility: "export".to_string(),
+                ..Default::default()
             }],
             dependencies: vec![],
             areas: vec![],
             git: GitInfo::default(),
+            ..Default::default()
         }
     }
 

@@ -256,6 +256,7 @@ mod tests {
                 dirty: false,
                 changed: Vec::new(),
             },
+            ..Default::default()
         };
         let counts = inbound_counts(&map);
         assert_eq!(counts.get("b"), Some(&1));
@@ -287,6 +288,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -295,6 +297,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -307,6 +310,7 @@ mod tests {
                 dirty: false,
                 changed: Vec::new(),
             },
+            ..Default::default()
         };
 
         let refs = textual_path_refs(
@@ -349,6 +353,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -357,6 +362,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f3".to_string(),
@@ -365,6 +371,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -377,6 +384,7 @@ mod tests {
                 dirty: false,
                 changed: Vec::new(),
             },
+            ..Default::default()
         };
 
         assert_eq!(

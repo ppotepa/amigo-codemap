@@ -15,8 +15,9 @@ pub fn print_open_set(
     query: &str,
     task: Option<&str>,
     limit: usize,
+    show_why: bool,
 ) -> Result<()> {
-    let report = build_open_set_report(root, map, query, task, limit)?;
+    let report = build_open_set_report(root, map, query, task, limit, show_why)?;
     print!("{}", render_report(&report));
     Ok(())
 }
@@ -27,6 +28,7 @@ fn build_open_set_report(
     query: &str,
     task: Option<&str>,
     limit: usize,
+    show_why: bool,
 ) -> Result<FileOpReport> {
     let changed_paths = changed_by_path(map);
     let changed_status = changed_status_by_path(map);
@@ -82,10 +84,14 @@ fn build_open_set_report(
             .map(|item| (item.0.as_str(), &item.1.0, &item.1.1))
         {
             findings.push(format!(
-                "  {} [score {}, {}]",
+                "  {} [score {}{}]",
                 path,
                 score,
-                reasons.join(", ")
+                if show_why {
+                    format!(", {}", reasons.join(", "))
+                } else {
+                    String::new()
+                }
             ));
         }
     }
@@ -99,10 +105,14 @@ fn build_open_set_report(
             .map(|item| (item.0.as_str(), &item.1.0, &item.1.1))
         {
             findings.push(format!(
-                "  {} [score {}, {}]",
+                "  {} [score {}{}]",
                 path,
                 score,
-                reasons.join(", ")
+                if show_why {
+                    format!(", {}", reasons.join(", "))
+                } else {
+                    String::new()
+                }
             ));
         }
     }
@@ -389,6 +399,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -397,6 +408,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f3".to_string(),
@@ -405,6 +417,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -414,6 +427,7 @@ mod tests {
                 file_id: "f1".to_string(),
                 line: 1,
                 visibility: "export".to_string(),
+                ..Default::default()
             }],
             dependencies: Vec::new(),
             areas: Vec::new(),
@@ -423,6 +437,7 @@ mod tests {
                 dirty: true,
                 changed: Vec::new(),
             },
+            ..Default::default()
         };
 
         let report = build_open_set_report(
@@ -431,6 +446,7 @@ mod tests {
             "EditorSelectionRef",
             Some("migrate"),
             5,
+            true,
         )
         .expect("open-set should build");
         assert_eq!(

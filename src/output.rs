@@ -8,7 +8,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 
 use crate::cli::Options;
-use crate::model::CodeMap;
+use crate::model::{CODEMAP_SCHEMA_VERSION, CodeMap};
 
 pub fn write_codemap(options: &Options, map: &CodeMap) -> Result<bool> {
     let value = to_json(map);
@@ -38,7 +38,7 @@ pub fn write_codemap(options: &Options, map: &CodeMap) -> Result<bool> {
 
 pub fn to_json(map: &CodeMap) -> Value {
     json!({
-        "v": 1,
+        "v": CODEMAP_SCHEMA_VERSION,
         "ts": unix_timestamp(),
         "root": map.root_name,
         "git": {
@@ -52,7 +52,7 @@ pub fn to_json(map: &CodeMap) -> Value {
         },
         "st": map.stats,
         "f": map.files.iter().map(|file| {
-            json!([file.id, slash_path(&file.path), file.language, file.lines, file.hash])
+            json!([file.id, slash_path(&file.path), file.language, file.lines, file.hash, file.size, file.tags])
         }).collect::<Vec<_>>(),
         "pkg": map.packages.iter().map(|package| {
             json!([
@@ -66,10 +66,52 @@ pub fn to_json(map: &CodeMap) -> Value {
             ])
         }).collect::<Vec<_>>(),
         "s": map.symbols.iter().map(|symbol| {
-            json!([symbol.name, symbol.kind, symbol.file_id, symbol.line, symbol.visibility])
+            json!([
+                symbol.name,
+                symbol.kind,
+                symbol.file_id,
+                symbol.line,
+                symbol.visibility,
+                symbol.line_end,
+                symbol.line_count,
+                symbol.signature,
+                symbol.params,
+                symbol.return_type,
+                symbol.generics,
+                symbol.owner,
+                symbol.tags,
+                symbol.confidence
+            ])
+        }).collect::<Vec<_>>(),
+        "tx": map.text_occurrences.iter().map(|occurrence| {
+            json!([
+                occurrence.id,
+                occurrence.value,
+                occurrence.normalized_value,
+                occurrence.kind,
+                occurrence.file_id,
+                occurrence.line,
+                occurrence.column,
+                occurrence.owner,
+                occurrence.context,
+                occurrence.tags,
+                occurrence.confidence,
+            ])
+        }).collect::<Vec<_>>(),
+        "tags": map.tags.iter().map(|tag| {
+            json!([
+                tag.name,
+                tag.file_id,
+                tag.line,
+                tag.target,
+                tag.values,
+            ])
         }).collect::<Vec<_>>(),
         "d": map.dependencies.iter().map(|dep| {
             json!([dep.from, dep.to, dep.kind])
+        }).collect::<Vec<_>>(),
+        "rel": map.relations.iter().map(|rel| {
+            json!([rel.from, rel.to, rel.kind, rel.confidence])
         }).collect::<Vec<_>>(),
         "areas": map.areas.iter().map(|area| {
             json!([area.name, area.files])

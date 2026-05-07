@@ -224,6 +224,7 @@ mod tests {
                     lines: 40,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -234,6 +235,7 @@ mod tests {
                     lines: 30,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -244,6 +246,7 @@ mod tests {
                     file_id: "f1".to_string(),
                     line: 10,
                     visibility: "export".to_string(),
+                    ..Default::default()
                 },
                 SymbolEntry {
                     name: "MainEditorWindow".to_string(),
@@ -251,6 +254,7 @@ mod tests {
                     file_id: "f2".to_string(),
                     line: 5,
                     visibility: "export".to_string(),
+                    ..Default::default()
                 },
             ],
             dependencies: Vec::new(),
@@ -261,6 +265,7 @@ mod tests {
                 dirty: true,
                 changed: Vec::new(),
             },
+            ..Default::default()
         }
     }
 

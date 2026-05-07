@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use regex::Regex;
 
+use super::signature::{ExtractedSignature, extract_signature};
 use crate::model::{DependencyEntry, FileEntry, SymbolEntry};
 
 pub fn scan_symbols(root: &Path, files: &[FileEntry], level: u8) -> Result<Vec<SymbolEntry>> {
@@ -63,8 +64,9 @@ fn scan_rust(
     patterns: &RustPatterns,
 ) -> Result<Vec<SymbolEntry>> {
     let text = fs::read_to_string(root.join(&file.path))?;
+    let lines = text.lines().collect::<Vec<_>>();
     let mut symbols = Vec::new();
-    for (line_index, line) in text.lines().enumerate() {
+    for (line_index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("//") {
             continue;
@@ -79,13 +81,24 @@ fn scan_rust(
                 if level == 1 && visibility != "pub" {
                     continue;
                 }
-                symbols.push(SymbolEntry {
-                    name: caps["name"].to_string(),
-                    kind: caps["kind"].to_string(),
-                    file_id: file.id.clone(),
-                    line: line_index + 1,
+                let kind = caps["kind"].to_string();
+                let owner = if kind == "impl" {
+                    None
+                } else {
+                    rust_owner_at(&lines, line_index)
+                };
+                let line_number = line_index + 1;
+                let extracted = extract_signature(&lines, line_index, &file.language);
+                symbols.push(build_symbol(
+                    file,
+                    caps["name"].to_string(),
+                    kind,
+                    line_number,
                     visibility,
-                });
+                    owner,
+                    extracted,
+                    Vec::new(),
+                ));
                 break;
             }
         }
@@ -100,8 +113,9 @@ fn scan_ts(
     patterns: &TsPatterns,
 ) -> Result<Vec<SymbolEntry>> {
     let text = fs::read_to_string(root.join(&file.path))?;
+    let lines = text.lines().collect::<Vec<_>>();
     let mut symbols = Vec::new();
-    for (line_index, line) in text.lines().enumerate() {
+    for (line_index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("//") {
             continue;
@@ -121,13 +135,19 @@ fn scan_ts(
                 if kind == "const" || kind == "function" {
                     kind = classify_ts_name(&name, &file.language);
                 }
-                symbols.push(SymbolEntry {
+                let line_number = line_index + 1;
+                let extracted = extract_signature(&lines, line_index, &file.language);
+                let owner = ts_owner_at(&lines, line_index);
+                symbols.push(build_symbol(
+                    file,
                     name,
                     kind,
-                    file_id: file.id.clone(),
-                    line: line_index + 1,
-                    visibility: visibility.to_string(),
-                });
+                    line_number,
+                    visibility.to_string(),
+                    owner,
+                    extracted,
+                    Vec::new(),
+                ));
                 break;
             }
         }
@@ -141,13 +161,16 @@ fn scan_yaml(root: &Path, file: &FileEntry, patterns: &YamlPatterns) -> Result<V
     for (line_index, line) in text.lines().enumerate() {
         for (kind, regex) in &patterns.items {
             if let Some(caps) = regex.captures(line.trim()) {
-                symbols.push(SymbolEntry {
-                    name: caps["name"].to_string(),
-                    kind: kind.to_string(),
-                    file_id: file.id.clone(),
-                    line: line_index + 1,
-                    visibility: "yaml".to_string(),
-                });
+                symbols.push(build_symbol(
+                    file,
+                    caps["name"].to_string(),
+                    kind.to_string(),
+                    line_index + 1,
+                    "yaml".to_string(),
+                    None,
+                    one_line_signature(line.trim(), line_index + 1, 60),
+                    Vec::new(),
+                ));
                 break;
             }
         }
@@ -161,13 +184,16 @@ fn scan_rhai(root: &Path, file: &FileEntry) -> Result<Vec<SymbolEntry>> {
     let mut symbols = Vec::new();
     for (line_index, line) in text.lines().enumerate() {
         if let Some(caps) = regex.captures(line.trim_start()) {
-            symbols.push(SymbolEntry {
-                name: caps["name"].to_string(),
-                kind: "fn".to_string(),
-                file_id: file.id.clone(),
-                line: line_index + 1,
-                visibility: "rhai".to_string(),
-            });
+            symbols.push(build_symbol(
+                file,
+                caps["name"].to_string(),
+                "fn".to_string(),
+                line_index + 1,
+                "rhai".to_string(),
+                None,
+                one_line_signature(line.trim(), line_index + 1, 65),
+                Vec::new(),
+            ));
         }
     }
     Ok(symbols)
@@ -189,16 +215,102 @@ fn scan_css(root: &Path, file: &FileEntry) -> Result<Vec<SymbolEntry>> {
             if selector.is_empty() {
                 continue;
             }
-            symbols.push(SymbolEntry {
-                name: selector.to_string(),
-                kind: "css-selector".to_string(),
-                file_id: file.id.clone(),
-                line: line_index + 1,
-                visibility: "css".to_string(),
-            });
+            symbols.push(build_symbol(
+                file,
+                selector.to_string(),
+                "css-selector".to_string(),
+                line_index + 1,
+                "css".to_string(),
+                None,
+                one_line_signature(selector, line_index + 1, 55),
+                Vec::new(),
+            ));
         }
     }
     Ok(symbols)
+}
+
+fn build_symbol(
+    file: &FileEntry,
+    name: String,
+    kind: String,
+    line: usize,
+    visibility: String,
+    owner: Option<String>,
+    extracted: ExtractedSignature,
+    mut tags: Vec<String>,
+) -> SymbolEntry {
+    tags.extend(file.tags.iter().cloned());
+    tags.push(format!("kind:{kind}"));
+    tags.push(format!("visibility:{visibility}"));
+    tags.push(format!("lang:{}", file.language));
+    if let Some(owner) = &owner {
+        tags.push(format!("owner:{}", owner.replace(' ', ":")));
+    }
+    tags.sort();
+    tags.dedup();
+
+    SymbolEntry {
+        name,
+        kind,
+        file_id: file.id.clone(),
+        line,
+        line_end: extracted.line_end,
+        line_count: extracted.line_end.saturating_sub(line).saturating_add(1),
+        signature: extracted.signature,
+        params: extracted.params,
+        return_type: extracted.return_type,
+        generics: extracted.generics,
+        visibility,
+        owner,
+        tags,
+        confidence: extracted.confidence,
+    }
+}
+
+fn one_line_signature(signature: &str, line_end: usize, confidence: u8) -> ExtractedSignature {
+    ExtractedSignature {
+        signature: signature.to_string(),
+        params: Vec::new(),
+        return_type: None,
+        generics: Vec::new(),
+        line_end,
+        confidence,
+    }
+}
+
+fn rust_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
+    let impl_re = Regex::new(r"^\s*impl(?:\s*<[^>]+>)?\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)").ok()?;
+    for index in (0..line_index).rev().take(120) {
+        let line = lines[index].trim_start();
+        if let Some(caps) = impl_re.captures(line) {
+            return Some(format!("impl {}", &caps["name"]));
+        }
+        if line.starts_with("pub struct ")
+            || line.starts_with("struct ")
+            || line.starts_with("pub enum ")
+            || line.starts_with("enum ")
+            || line.starts_with("pub trait ")
+            || line.starts_with("trait ")
+        {
+            break;
+        }
+    }
+    None
+}
+
+fn ts_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
+    let owner_re = Regex::new(
+        r"^\s*(?:export\s+)?(?P<kind>class|interface|type)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)",
+    )
+    .ok()?;
+    for index in (0..line_index).rev().take(120) {
+        let line = lines[index].trim_start();
+        if let Some(caps) = owner_re.captures(line) {
+            return Some(format!("{} {}", &caps["kind"], &caps["name"]));
+        }
+    }
+    None
 }
 
 fn scan_ts_imports(

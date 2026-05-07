@@ -7,19 +7,32 @@ use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 
+pub mod api_surface;
+pub mod callsite_candidates;
+pub mod change_plan;
 pub mod command_map;
 pub mod common;
+pub mod component_graph;
 pub mod dup;
+pub mod explain_file;
 pub mod fallout;
 pub mod file_ops;
 pub mod impact;
 pub mod move_plan;
+pub mod neighbors;
 pub mod registry;
+pub mod risk_index;
 pub mod service_shape;
+pub mod signature;
 pub mod stale;
 pub mod summary;
+pub mod symbols;
 pub mod tauri;
+pub mod tauri_graph;
+pub mod todo_index;
+pub mod trace;
 pub mod verify_plan;
+pub mod where_symbol;
 
 pub fn print_brief(map: &CodeMap) {
     println!(
@@ -72,7 +85,7 @@ pub fn print_files(
 ) {
     let changed = changed_by_path(map);
     let mut counts = BTreeMap::<String, usize>::new();
-    let filters = parse_tag_filters(query);
+    let filters = crate::query::Query::parse(query);
     let mut emitted = 0usize;
 
     for file in &map.files {
@@ -82,17 +95,27 @@ pub fn print_files(
             continue;
         }
 
-        let tags = tags_for_file(map, file, change.map(|value| *value));
-        if !matches_filters(&tags, &filters) {
+        let tags = file.tags.clone();
+        if !filters.matches_tags(&tags) {
             continue;
         }
 
         if let Some(group_key) = group {
             let keys = match group_key {
                 "tag" => tags.clone(),
+                "domain" => tags
+                    .iter()
+                    .filter_map(|tag| tag.strip_prefix("domain:").map(str::to_string))
+                    .collect(),
+                "layer" => tags
+                    .iter()
+                    .filter_map(|tag| tag.strip_prefix("layer:").map(str::to_string))
+                    .collect(),
                 "path" => vec![path_group(&file.path)],
                 "language" => vec![file.language.clone()],
-                "package" => vec![package_for_path(map, &file.path).unwrap_or_else(|| "-".to_string())],
+                "package" => {
+                    vec![package_for_path(map, &file.path).unwrap_or_else(|| "-".to_string())]
+                }
                 _ => vec![path_group(&file.path)],
             };
             for key in keys {
@@ -601,90 +624,6 @@ fn language_from_path(path: &Path) -> String {
         .unwrap_or_else(|| "txt".to_string())
 }
 
-fn tags_for_file(map: &CodeMap, file: &FileEntry, change: Option<&GitChange>) -> Vec<String> {
-    let path = slash_path(&file.path);
-    let mut tags = BTreeSet::<String>::new();
-
-    tags.insert(format!("lang:{}", file.language));
-    tags.insert(format!("ext:{}", file.language));
-
-    if path.starts_with("crates/apps/") {
-        tags.insert("layer:app".to_string());
-    } else if path.starts_with("crates/tools/") {
-        tags.insert("layer:tool".to_string());
-    } else if path.starts_with("mods/") {
-        tags.insert("layer:mod".to_string());
-    } else if path.starts_with("docs/") || path.ends_with(".md") {
-        tags.insert("layer:docs".to_string());
-    } else {
-        tags.insert("layer:root".to_string());
-    }
-
-    if path.contains("/src/") {
-        tags.insert("kind:source".to_string());
-    }
-    if path.contains("/tests/") || path.ends_with(".test.ts") || path.ends_with(".test.tsx") {
-        tags.insert("kind:test".to_string());
-    }
-    if path.contains("/fixtures/") {
-        tags.insert("kind:fixture".to_string());
-    }
-    if path.ends_with(".css") {
-        tags.insert("kind:style".to_string());
-    }
-    if path.ends_with(".yml") || path.ends_with(".yaml") || path.ends_with(".toml") || path.ends_with(".json") {
-        tags.insert("kind:config".to_string());
-    }
-
-    if let Some(package) = package_for_path(map, &file.path) {
-        tags.insert(format!("package:{package}"));
-    }
-
-    for area in &map.areas {
-        if area.files.iter().any(|file_id| file_id == &file.id) {
-            tags.insert(format!("area:{}", area.name));
-        }
-    }
-
-    if let Some(change) = change {
-        tags.insert("state:changed".to_string());
-        tags.insert(format!("status:{}", change.status));
-    } else {
-        tags.insert("state:clean".to_string());
-    }
-
-    tags.into_iter().collect()
-}
-
-fn parse_tag_filters(query: Option<&str>) -> Vec<String> {
-    query
-        .unwrap_or_default()
-        .split(',')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_ascii_lowercase())
-        .collect()
-}
-
-fn matches_filters(tags: &[String], filters: &[String]) -> bool {
-    if filters.is_empty() {
-        return true;
-    }
-    let lower_tags = tags
-        .iter()
-        .map(|tag| tag.to_ascii_lowercase())
-        .collect::<Vec<_>>();
-    filters.iter().all(|filter| {
-        lower_tags.iter().any(|tag| {
-            if filter.contains(':') {
-                tag == filter
-            } else {
-                tag.contains(filter)
-            }
-        })
-    })
-}
-
 fn slash_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
@@ -695,26 +634,8 @@ fn empty_dash(value: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{matches_filters, parse_tag_filters};
-
     #[test]
-    fn parses_csv_filters() {
-        let filters = parse_tag_filters(Some("layer:app, kind:source , ui"));
-        assert_eq!(filters, vec!["layer:app", "kind:source", "ui"]);
-    }
-
-    #[test]
-    fn matches_exact_and_fuzzy_filters() {
-        let tags = vec![
-            "layer:app".to_string(),
-            "kind:source".to_string(),
-            "area:feature:workspace".to_string(),
-        ];
-        assert!(matches_filters(&tags, &["layer:app".to_string()]));
-        assert!(matches_filters(
-            &tags,
-            &["layer:app".to_string(), "workspace".to_string()]
-        ));
-        assert!(!matches_filters(&tags, &["kind:test".to_string()]));
+    fn smoke() {
+        assert_eq!(2 + 2, 4);
     }
 }

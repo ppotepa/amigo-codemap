@@ -1,9 +1,13 @@
+mod cache;
 mod cli;
 mod git;
 mod model;
 mod output;
+mod query;
 mod report;
 mod scan;
+#[cfg(test)]
+mod test_support;
 mod watch;
 
 use anyhow::Result;
@@ -13,7 +17,12 @@ fn main() -> Result<()> {
     let mut cli = Cli::parse(std::env::args().skip(1))?;
 
     match cli.command {
-        Command::Brief | Command::Changed | Command::Find | Command::Docs | Command::CommandMap | Command::Files => {
+        Command::Brief
+        | Command::Changed
+        | Command::Find
+        | Command::Docs
+        | Command::CommandMap
+        | Command::Files => {
             cli.options.level = 0;
             cli.options.ai = false;
         }
@@ -26,7 +35,6 @@ fn main() -> Result<()> {
         | Command::RegistryCheck
         | Command::OperationsSummary
         | Command::CommitSummary
-        | Command::Slice
         | Command::DiffScope
         | Command::DeletePlan
         | Command::FileMovePlan
@@ -39,6 +47,9 @@ fn main() -> Result<()> {
         | Command::TextCheck
         | Command::PatchCheck
         | Command::PatchApply
+        | Command::OpsPreview
+        | Command::OpsCheck
+        | Command::RiskIndex
         | Command::CommitFiles => {
             cli.options.level = 0;
             cli.options.ai = false;
@@ -47,6 +58,30 @@ fn main() -> Result<()> {
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
+        }
+        Command::Where
+        | Command::Symbols
+        | Command::Signature
+        | Command::Trace
+        | Command::ChangePlan
+        | Command::ExplainFile
+        | Command::Neighbors
+        | Command::ApiSurface
+        | Command::ComponentGraph
+        | Command::TauriGraph
+        | Command::CallsiteCandidates
+        | Command::TodoIndex
+        | Command::OpsApply
+            if cli.options.level < 2 =>
+        {
+            cli.options.level = 2;
+        }
+        Command::Slice if cli.options.symbol.is_some() && cli.options.level < 2 => {
+            cli.options.level = 2;
+        }
+        Command::Slice => {
+            cli.options.level = 0;
+            cli.options.ai = false;
         }
         Command::OpenSet
         | Command::LargeFiles
@@ -66,6 +101,9 @@ fn main() -> Result<()> {
         Command::OrphanFiles if cli.options.level < 3 => {
             cli.options.level = 3;
         }
+        Command::Refresh => {
+            cli.options.level = 2;
+        }
         _ => {}
     }
 
@@ -74,6 +112,14 @@ fn main() -> Result<()> {
             let map = scan::scan_project(&cli.options)?;
             if output::write_codemap(&cli.options, &map)? {
                 println!("wrote {}", cli.options.out.display());
+            } else {
+                println!("unchanged {}", cli.options.out.display());
+            }
+        }
+        Command::Refresh => {
+            let wrote = cache::refresh_changed_only(&cli.options)?;
+            if wrote {
+                println!("refreshed {}", cli.options.out.display());
             } else {
                 println!("unchanged {}", cli.options.out.display());
             }
@@ -95,12 +141,89 @@ fn main() -> Result<()> {
         }
         Command::Symbols => {
             let map = scan::scan_project(&cli.options)?;
-            for symbol in &map.symbols {
-                println!(
-                    "{}\t{}\t{}\t{}",
-                    symbol.kind, symbol.name, symbol.file_id, symbol.line
-                );
-            }
+            report::symbols::print_symbols(
+                &map,
+                cli.options.query.as_deref(),
+                cli.options.file.as_deref(),
+                cli.options.changed_only,
+                cli.options.metadata,
+                cli.options.limit,
+            )?;
+        }
+        Command::Where => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("where requires a query"))?;
+            report::where_symbol::print_where(&cli.options.root, &map, query, cli.options.limit)?;
+        }
+        Command::Signature => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("signature requires a query"))?;
+            report::signature::print_signature(&map, query, cli.options.limit)?;
+        }
+        Command::Trace => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("trace requires a query"))?;
+            report::trace::print_trace(&map, query, cli.options.limit)?;
+        }
+        Command::ChangePlan => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("change-plan requires a query"))?;
+            report::change_plan::print_change_plan(&map, query, cli.options.limit)?;
+        }
+        Command::ExplainFile => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("explain-file requires a path"))?;
+            report::explain_file::print_explain_file(&map, query)?;
+        }
+        Command::Neighbors => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("neighbors requires a path"))?;
+            report::neighbors::print_neighbors(&map, query, cli.options.limit)?;
+        }
+        Command::ApiSurface => {
+            let map = scan::scan_project(&cli.options)?;
+            report::api_surface::print_api_surface(&map, cli.options.limit);
+        }
+        Command::ComponentGraph => {
+            let map = scan::scan_project(&cli.options)?;
+            report::component_graph::print_component_graph(&map, cli.options.limit);
+        }
+        Command::TauriGraph => {
+            let map = scan::scan_project(&cli.options)?;
+            report::tauri_graph::print_tauri_graph(&map, cli.options.limit);
+        }
+        Command::CallsiteCandidates => {
+            let map = scan::scan_project(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("callsite-candidates requires a query"))?;
+            report::callsite_candidates::print_callsite_candidates(&map, query, cli.options.limit)?;
         }
         Command::Compact => {
             let mut options = cli.options;
@@ -391,6 +514,7 @@ fn main() -> Result<()> {
                 query,
                 cli.options.task.as_deref(),
                 cli.options.limit,
+                cli.options.why,
             )?;
         }
         Command::Workset => {
@@ -508,6 +632,38 @@ fn main() -> Result<()> {
                 cli.options.write,
                 cli.options.limit,
             )?;
+        }
+        Command::OpsPreview => {
+            report::file_ops::ops_plan::print_ops_preview(
+                &cli.options.root,
+                cli.options.from.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::OpsCheck => {
+            report::file_ops::ops_plan::print_ops_check(
+                &cli.options.root,
+                cli.options.from.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::OpsApply => {
+            let map = scan::scan_project(&cli.options)?;
+            report::file_ops::ops_plan::print_ops_apply(
+                &cli.options.root,
+                &map,
+                cli.options.from.as_deref(),
+                cli.options.write,
+                cli.options.limit,
+            )?;
+        }
+        Command::TodoIndex => {
+            let map = scan::scan_project(&cli.options)?;
+            report::todo_index::print_todo_index(&map, cli.options.limit);
+        }
+        Command::RiskIndex => {
+            let map = scan::scan_project(&cli.options)?;
+            report::risk_index::print_risk_index(&map, cli.options.limit);
         }
         Command::CommitFiles => {
             let map = scan::scan_project(&cli.options)?;

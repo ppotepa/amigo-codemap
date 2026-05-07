@@ -68,6 +68,12 @@ fn read_file_entry(root: &Path, path: &Path, size: u64) -> Result<Option<FileEnt
     let relative = path.strip_prefix(root).unwrap_or(path).to_path_buf();
     let language = language_for(path);
 
+    let tags = classify_file_tags(
+        path.strip_prefix(root).unwrap_or(path),
+        &language,
+        lines,
+        size,
+    );
     Ok(Some(FileEntry {
         id: String::new(),
         path: relative,
@@ -75,6 +81,7 @@ fn read_file_entry(root: &Path, path: &Path, size: u64) -> Result<Option<FileEnt
         lines,
         hash,
         size,
+        tags,
     }))
 }
 
@@ -144,9 +151,104 @@ fn short_hash(bytes: &[u8]) -> String {
     format!("{hash:016x}")[..8].to_string()
 }
 
+pub fn classify_file_tags(path: &Path, language: &str, lines: usize, size: u64) -> Vec<String> {
+    let path_text = slash_path(path);
+    let mut tags = Vec::<String>::new();
+
+    push_tag(&mut tags, &format!("lang:{language}"));
+    push_tag(&mut tags, &format!("ext:{language}"));
+    push_tag(&mut tags, classify_layer(&path_text));
+    push_tag(&mut tags, classify_kind(&path_text, language));
+
+    for domain in classify_domains(&path_text) {
+        push_tag(&mut tags, &format!("domain:{domain}"));
+    }
+
+    if lines > 500 || size > 80_000 {
+        push_tag(&mut tags, "risk:large");
+    }
+
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
+fn classify_layer(path: &str) -> &'static str {
+    if path.starts_with("crates/apps/") {
+        "layer:app"
+    } else if path.starts_with("crates/tools/") {
+        "layer:tool"
+    } else if path.starts_with("crates/engine/") {
+        "layer:engine"
+    } else if path.starts_with("crates/ui/") {
+        "layer:ui"
+    } else if path.starts_with("mods/") {
+        "layer:mod"
+    } else if path.ends_with(".md") || path.starts_with("docs/") {
+        "layer:docs"
+    } else {
+        "layer:root"
+    }
+}
+
+fn classify_kind(path: &str, language: &str) -> &'static str {
+    if path.contains("/tests/") || path.contains(".test.") || path.contains(".spec.") {
+        "kind:test"
+    } else if path.contains("/fixtures/") {
+        "kind:fixture"
+    } else if language == "css" {
+        "kind:style"
+    } else if matches!(
+        language,
+        "yaml" | "yml" | "toml" | "json" | "cargo" | "package"
+    ) {
+        "kind:config"
+    } else if path.ends_with(".md") {
+        "kind:docs"
+    } else {
+        "kind:source"
+    }
+}
+
+fn classify_domains(path: &str) -> Vec<&'static str> {
+    let mut domains = Vec::new();
+    let rules = [
+        ("src/main-window/", "workspace"),
+        ("src/dock/", "dock"),
+        ("src/features/scenes/", "scenes"),
+        ("src/features/assets/", "assets"),
+        ("src/features/files/", "files"),
+        ("src/features/project/", "project"),
+        ("src/features/inspector/", "inspector"),
+        ("src/properties/", "properties"),
+        ("src/startup/", "startup"),
+        ("src-tauri/src/commands/", "tauri-commands"),
+        ("editor_mode", "editor-mode"),
+        ("ui_document", "ui-document"),
+        ("ui-document", "ui-document"),
+        ("crates/tools/amigo-codemap/", "codemap"),
+    ];
+    for (needle, domain) in rules {
+        if path.contains(needle) {
+            domains.push(domain);
+        }
+    }
+    domains
+}
+
+fn push_tag(tags: &mut Vec<String>, tag: &str) {
+    if !tag.is_empty() && !tags.iter().any(|item| item == tag) {
+        tags.push(tag.to_string());
+    }
+}
+
+fn slash_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::language_for;
+    use super::{classify_file_tags, language_for};
     use std::path::Path;
 
     #[test]
@@ -154,5 +256,18 @@ mod tests {
         assert_eq!(language_for(Path::new("src/lib.rs")), "rs");
         assert_eq!(language_for(Path::new("src/App.tsx")), "tsx");
         assert_eq!(language_for(Path::new("Cargo.toml")), "cargo");
+    }
+
+    #[test]
+    fn classifies_codemap_tool_file() {
+        let tags = classify_file_tags(
+            Path::new("crates/tools/amigo-codemap/src/main.rs"),
+            "rs",
+            100,
+            10_000,
+        );
+        assert!(tags.contains(&"layer:tool".to_string()));
+        assert!(tags.contains(&"domain:codemap".to_string()));
+        assert!(tags.contains(&"kind:source".to_string()));
     }
 }

@@ -307,6 +307,7 @@ mod tests {
                     lines: 10,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -315,6 +316,7 @@ mod tests {
                     lines: 4,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -324,6 +326,7 @@ mod tests {
                 file_id: "f1".to_string(),
                 line: 1,
                 visibility: "export".to_string(),
+                ..Default::default()
             }],
             dependencies: Vec::new(),
             areas: Vec::new(),
@@ -337,6 +340,7 @@ mod tests {
                     file_id: Some("f1".to_string()),
                 }],
             },
+            ..Default::default()
         }
     }
 

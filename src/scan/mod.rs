@@ -1,6 +1,9 @@
+mod codemap_tags;
 mod files;
 mod packages;
+mod signature;
 mod symbols;
+mod text_occurrences;
 
 use std::collections::BTreeMap;
 
@@ -8,7 +11,7 @@ use anyhow::Result;
 
 use crate::cli::Options;
 use crate::git;
-use crate::model::{AreaEntry, CodeMap};
+use crate::model::{AreaEntry, CodeMap, RelationEntry};
 
 pub fn scan_project(options: &Options) -> Result<CodeMap> {
     let mut files = files::scan_files(&options.root)?;
@@ -29,6 +32,26 @@ pub fn scan_project(options: &Options) -> Result<CodeMap> {
         .collect::<BTreeMap<_, _>>();
 
     let packages = packages::scan_packages(&options.root, &files)?;
+    let git = git::read_git_info(&options.root, &file_ids);
+    let changed_file_ids = git
+        .changed
+        .iter()
+        .filter_map(|change| change.file_id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    for file in &mut files {
+        if changed_file_ids.contains(&file.id) {
+            push_file_tag(&mut file.tags, "state:changed");
+            if let Some(change) = git
+                .changed
+                .iter()
+                .find(|change| change.file_id.as_deref() == Some(&file.id))
+            {
+                push_file_tag(&mut file.tags, &format!("status:{}", change.status));
+            }
+        } else {
+            push_file_tag(&mut file.tags, "state:clean");
+        }
+    }
 
     let symbols = if options.level > 0 {
         symbols::scan_symbols(&options.root, &files, options.level)?
@@ -49,8 +72,18 @@ pub fn scan_project(options: &Options) -> Result<CodeMap> {
         dependencies.sort_by(|a, b| (&a.from, &a.to, &a.kind).cmp(&(&b.from, &b.to, &b.kind)));
         dependencies.dedup();
     }
+    let text_occurrences = if options.level >= 2 || options.ai {
+        text_occurrences::scan_text_occurrences(&options.root, &files)?
+    } else {
+        Vec::new()
+    };
+    let tags = if options.level >= 2 || options.ai {
+        codemap_tags::scan_codemap_tags(&options.root, &files)?
+    } else {
+        Vec::new()
+    };
+    let relations = build_relations_from_dependencies(&dependencies);
     let areas = build_areas(&files);
-    let git = git::read_git_info(&options.root, &file_ids);
 
     Ok(CodeMap {
         root_name: options
@@ -62,10 +95,34 @@ pub fn scan_project(options: &Options) -> Result<CodeMap> {
         files,
         packages,
         symbols,
+        text_occurrences,
+        tags,
         dependencies,
+        relations,
         areas,
         git,
     })
+}
+
+fn build_relations_from_dependencies(
+    dependencies: &[crate::model::DependencyEntry],
+) -> Vec<RelationEntry> {
+    dependencies
+        .iter()
+        .map(|dep| RelationEntry {
+            from: dep.from.clone(),
+            to: dep.to.clone(),
+            kind: dep.kind.clone(),
+            confidence: 70,
+        })
+        .collect()
+}
+
+fn push_file_tag(tags: &mut Vec<String>, tag: &str) {
+    if !tags.iter().any(|existing| existing == tag) {
+        tags.push(tag.to_string());
+        tags.sort();
+    }
 }
 
 fn build_areas(files: &[crate::model::FileEntry]) -> Vec<AreaEntry> {

@@ -185,6 +185,7 @@ mod tests {
                     lines: 2,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f2".to_string(),
@@ -195,6 +196,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
                 FileEntry {
                     id: "f3".to_string(),
@@ -203,6 +205,7 @@ mod tests {
                     lines: 1,
                     hash: String::new(),
                     size: 0,
+                    ..Default::default()
                 },
             ],
             packages: Vec::new(),
@@ -215,6 +218,7 @@ mod tests {
                 dirty: true,
                 changed: Vec::new(),
             },
+            ..Default::default()
         };
 
         let report = build_file_move_plan_report(
