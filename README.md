@@ -1025,6 +1025,233 @@ cargo build -p amigo-codemap
 & $cm verify-plan --changed
 ```
 
+## Codemap Workflow Benchmark Protocol
+
+Use this benchmark when validating whether `amigo-codemap` saves agent context compared with a conventional `rg`/`Get-Content` workflow.
+
+The benchmark is intentionally practical, not scientific. The main question is:
+
+```text
+How many files and lines must the agent inspect before the first correct patch?
+```
+
+### Methods
+
+Each task is executed twice:
+
+```text
+A. codemap-first flow
+B. rollback
+C. standard flow
+D. compare metrics
+```
+
+Use mixed ordering to reduce memory bias:
+
+| Task | Size | First run | Second run |
+|---|---:|---|---|
+| Task 1 | 3 steps | codemap-first | standard |
+| Task 2 | 5 steps | standard | codemap-first |
+| Task 3 | 10 steps | codemap-first | standard |
+
+Between runs, reset the working tree and context:
+
+```powershell
+git diff --stat
+git diff > .tmp-task-result.patch
+git reset --hard
+git clean -fd
+```
+
+For a fair standard path, use the best conventional workflow you would normally use: focused `rg`, narrow `Get-Content`, targeted `git diff`, and no deliberately wasteful full-repo reads. For a fair codemap path, use `change-plan`, `trace`, `open-set --why`, `signature`, `slice`, `impact`, and `verify-plan` before falling back to raw tools.
+
+### Metrics
+
+Record these metrics for each run:
+
+| Metric | Meaning |
+|---|---|
+| `commands_count` | Number of terminal commands used for research, edits, and verify |
+| `files_opened` | Number of files read through `Get-Content`, `slice`, or full file opens |
+| `lines_read` | Approximate lines of source/output consumed as context |
+| `terminal_chars` | Characters produced by research commands |
+| `estimated_tokens` | `(terminal_chars + read_chars) / 4` |
+| `edit_attempts` | Number of patch attempts/fixes |
+| `verify_commands` | Number of build/test/check commands |
+| `result` | `pass` or `fail` |
+| `notes` | Where codemap helped or got in the way |
+
+Measurement helper:
+
+```powershell
+function Run-Measured($Name, $Command) {
+  $out = Invoke-Expression $Command 2>&1 | Out-String
+  [PSCustomObject]@{
+    Name = $Name
+    Chars = $out.Length
+    ApproxTokens = [math]::Ceiling($out.Length / 4)
+    Command = $Command
+  }
+}
+```
+
+### Task 1: Scene Snapshot Diagnostic Label Passthrough
+
+Size: small, 3 implementation steps.
+
+Goal: pass a short `diagnostic_label` from scene snapshot service through editor snapshot DTOs so frontend can display whether the scene snapshot is engine, fallback, or cached.
+
+Codemap-first:
+
+```powershell
+$cm = "target\debug\amigo-codemap.exe"
+
+Run-Measured "change-plan" "$cm change-plan diagnostic_label --limit 20"
+Run-Measured "trace" "$cm trace diagnostic_label --limit 20"
+Run-Measured "open-set" "$cm open-set diagnostic_label --why --limit 8"
+Run-Measured "signature" "$cm signature SceneSnapshotImage"
+Run-Measured "impact" "$cm impact diagnostic_label --limit 20"
+
+& $cm slice crates/tools/scene-snapshot/src/model.rs --symbol SceneSnapshotImage
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/dto.rs --symbol EditorSceneSnapshotDto
+```
+
+Standard:
+
+```powershell
+rg "diagnostic_label|SceneSnapshotImage|EditorSceneSnapshotDto"
+Get-Content crates/tools/scene-snapshot/src/model.rs
+Get-Content crates/tools/scene-snapshot/src/runtime.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/dto.rs
+Get-Content crates/apps/amigo-editor/src/api/dto.ts
+```
+
+Expected savings: 35-55% fewer context tokens.
+
+### Task 2: Scene Editor Real-Snapshot Guard
+
+Size: medium, 5 implementation steps.
+
+Goal: make the scene editor clearly distinguish real engine snapshots from fallback snapshots. Picking and drag should be disabled unless the model came from a real engine layout.
+
+Codemap-first:
+
+```powershell
+$cm = "target\debug\amigo-codemap.exe"
+
+Run-Measured "change-plan" "$cm change-plan layoutSource --limit 20"
+Run-Measured "trace" "$cm trace layoutSource --limit 20"
+Run-Measured "open-set" "$cm open-set layoutSource --why --limit 10"
+Run-Measured "where" "$cm where EditorSceneSnapshotDto --limit 10"
+Run-Measured "impact" "$cm impact layoutSource --limit 30"
+
+& $cm slice crates/apps/amigo-editor/src/api/dto.ts --symbol EditorSceneSnapshotDto
+& $cm slice crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorModel.ts --symbol buildSceneEditorModel
+& $cm slice crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx --symbol SceneEditorCanvas
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs --symbol build_editor_scene_snapshot
+```
+
+Standard:
+
+```powershell
+rg "layoutSource|EditorSceneSnapshotDto|SceneEditorCanvas|fallback|bounds"
+Get-Content crates/apps/amigo-editor/src/api/dto.ts
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorTypes.ts
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorModel.ts
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorHud.tsx
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/dto.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs
+```
+
+Expected savings: 40-60% fewer context tokens.
+
+### Task 3: Editor Pointer Fast-Path
+
+Size: large, 10 implementation steps.
+
+Goal: reduce `pointerMove` cost in editor mode by adding a lightweight hover/cursor path that does not force full frame image refresh on every move. Full render should remain for down/up/drag/commit or throttled refresh.
+
+Codemap-first:
+
+```powershell
+$cm = "target\debug\amigo-codemap.exe"
+
+Run-Measured "change-plan" "$cm change-plan editor pointer fast path --limit 30"
+Run-Measured "trace-pointer" "$cm trace SendEditorPointerEvent --limit 30"
+Run-Measured "trace-frame" "$cm trace EditorFrameResultDto --limit 30"
+Run-Measured "open-set" "$cm open-set pointerMove --why --limit 12"
+Run-Measured "tauri-graph" "$cm tauri-graph --limit 80"
+Run-Measured "impact" "$cm impact sendEditorPointerEvent --limit 40"
+
+& $cm slice crates/apps/amigo-editor/src/main-window/hooks/useEditorModeCommands.ts --symbol useEditorModeCommands
+& $cm slice crates/apps/amigo-editor/src/features/scenes/editor/useSceneEditorPointerEvents.ts --symbol useSceneEditorPointerEvents
+& $cm slice crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx --symbol SceneEditorCanvas
+& $cm slice crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs --symbol send_editor_pointer_event
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/input.rs --symbol handle_pointer_event
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/session.rs --symbol EditorModeSession
+```
+
+Standard:
+
+```powershell
+rg "pointerMove|sendEditorPointerEvent|send_editor_pointer_event|EditorFrameResultDto|EditorModeSession|gizmo|hover|cursor"
+Get-Content crates/apps/amigo-editor/src/api/dto.ts
+Get-Content crates/apps/amigo-editor/src/api/editorApi.ts
+Get-Content crates/apps/amigo-editor/src/main-window/hooks/useEditorModeCommands.ts
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/useSceneEditorPointerEvents.ts
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx
+Get-Content crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorHud.tsx
+Get-Content crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/dto.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/input.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/session.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/renderer.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/gizmos.rs
+Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs
+```
+
+Expected savings: 45-65% fewer context tokens.
+
+### Result Template
+
+```md
+## Codemap Token Benchmark - Task 1
+
+### Task
+Scene snapshot diagnostic label passthrough
+
+### Method
+codemap-first
+
+### Metrics
+| Metric | Value |
+|---|---:|
+| commands_count | 9 |
+| files_opened | 3 |
+| lines_read | 140 |
+| terminal_chars | 9200 |
+| estimated_tokens | 2300 |
+| edit_attempts | 1 |
+| verify_commands | 2 |
+| result | pass |
+
+### Notes
+Codemap found snapshot/model/DTO path without full repo search.
+```
+
+Final comparison table:
+
+| Task | Steps | Method | Files opened | Lines read | Est. tokens | Commands | Result |
+|---|---:|---|---:|---:|---:|---:|---|
+| Snapshot label | 3 | codemap | 3 | 140 | 2.3k | 9 | pass |
+| Snapshot label | 3 | standard | 7 | 850 | 8.8k | 11 | pass |
+| Fallback guard | 5 | standard | 10 | 1800 | 15k | 14 | pass |
+| Fallback guard | 5 | codemap | 5 | 420 | 5.8k | 10 | pass |
+| Pointer fast-path | 10 | codemap | 8 | 950 | 11k | 16 | pass |
+| Pointer fast-path | 10 | standard | 17 | 5200 | 42k | 24 | pass |
+
 ## Minimal 0.1 Release Smoke Test
 
 Run this before calling the tool usable:
@@ -1038,7 +1265,7 @@ cargo build -p amigo-codemap
 $cm = "target\debug\amigo-codemap.exe"
 
 & $cm brief
-& $cm changed --group package --limit 20
+& $cm changes --compact --hide-generated --limit 20
 & $cm trace patch-apply --limit 20
 & $cm open-set patch-apply --why --limit 10
 & $cm impact patch-apply --limit 30
@@ -1081,7 +1308,7 @@ c
 ```powershell
 # Overview
 & $cm brief
-& $cm changed --group package
+& $cm changes --compact --hide-generated
 
 # Files and symbols
 & $cm files --query layer:app,kind:source
