@@ -480,8 +480,12 @@ Then run the suggested build and tests. Compiler/tests remain final truth.
 | I want likely callsites | `callsite-candidates` | `& $cm callsite-candidates scan_symbols` | Heuristic callsite list |
 | I want TODO/risk scope | `todo-index` / `risk-index` | `& $cm risk-index --limit 30` | Indexed TODO/risk/large/changed files |
 | I want to apply changes safely | `patch-check` / `ops-check` | `& $cm ops-check --from plan.yml` | Validates before write |
+| I want ops YAML schema | `ops-schema` | `& $cm ops-schema --example replace_symbol` | Required/optional fields and examples |
 | I want an ops plan starter | `ops-skeleton` | `& $cm ops-skeleton scan_symbols --out plan.yml --write` | Creates a YAML operations skeleton |
 | I need stable symbol range data | `range-for-symbol` | `& $cm range-for-symbol scan_symbols` | Path, lines, hash, signature, ops hint |
+| I need stable anchor range data | `anchor-range` | `& $cm anchor-range properties-registry` | Path, lines, hash, anchor locator |
+| I want verify commands from YAML | `ops-verify` | `& $cm ops-verify --from plan.yml` | Prints plan verify commands |
+| I want operations log text | `ops-summary` | `& $cm ops-summary --from plan.yml --changed` | operations.md-ready summary |
 | I want to save scope | `workset` | `& $cm workset ui-doc --from-impact UiDocumentEditor --save` | Saved task context |
 
 ## Command Reference
@@ -757,15 +761,34 @@ Always run:
 
 ```powershell
 & $cm ops-skeleton <query> --out plan.yml --write
+& $cm ops-schema --example replace_symbol
 & $cm ops-preview --from plan.yml
-& $cm ops-check --from plan.yml
-& $cm ops-apply --from plan.yml --write
+& $cm ops-check --from plan.yml --strict
+& $cm ops-apply --from plan.yml --write --backup --stop-on-error
+& $cm ops-verify --from plan.yml
+& $cm ops-summary --from plan.yml --changed
 ```
 
 Use `range-for-symbol` before hand-writing symbol/range based plans:
 
 ```powershell
 & $cm range-for-symbol scan_symbols
+```
+
+Use `anchor-range` before hand-writing anchor based plans:
+
+```powershell
+& $cm anchor-range properties-registry
+& $cm anchor-range properties-registry-start --to properties-registry-end
+```
+
+Ops input can come from a file, stdin, or inline YAML:
+
+```powershell
+& $cm ops-check --from plan.yml
+Get-Content .\plan.yml | & $cm ops-check --from -
+$yaml = "version: 1`ntask: inline`nops: []`n"
+& $cm ops-check --yaml $yaml
 ```
 
 Expected output includes:
@@ -784,11 +807,13 @@ Stable operations for 0.1:
 ```text
 create_file
 replace_file
+delete_file
+append_to_file
 replace_range
 delete_range
+insert_before_anchor
 insert_after_anchor
 replace_between_anchors
-delete_file
 ```
 
 Symbol-aware operations are implemented but should be treated as experimental until smoke-tested on the target file:
@@ -801,17 +826,77 @@ insert_after_symbol
 replace_method_body
 ```
 
+Safety priority:
+
+```text
+1. symbol + expected_hash
+2. anchor + context
+3. replace_between_anchors
+4. range + expected_hash + context_before/context_after
+5. replace_file
+```
+
+`ops-check --strict` fails unsafe plans more aggressively. In strict mode, range ops should include `expected_hash` and context, symbol ops must resolve uniquely, and missing anchors/symbols are hard failures.
+
+`ops-apply` is dry-run by default. It writes only with `--write`. Use `--backup` to copy touched files to `.amigo/ops-backups/<task>/...` before writes and `--stop-on-error` to avoid continuing after a failed op.
+
+### Ops Schema
+
+Use this when writing or reviewing YAML:
+
+```powershell
+& $cm ops-schema
+& $cm ops-schema --json
+& $cm ops-schema --example replace_symbol
+```
+
+Typical output:
+
+```yaml
+kind: replace_symbol
+required:
+  - path
+  - symbol
+  - content
+optional:
+  - id
+  - expected_hash
+  - context_before
+  - context_after
+```
+
+### Ops Split, Verify, Summary
+
+Use these helpers after a larger plan exists:
+
+```powershell
+& $cm ops-split --from all-tree-migration.yml --by domain
+& $cm ops-split --from all-tree-migration.yml --by risk
+& $cm ops-verify --from 001-shared-tree.yml
+& $cm ops-summary --from 001-shared-tree.yml --changed
+```
+
+`ops-split` currently proposes logical split files; it does not write split YAMLs. `ops-verify --run` is intentionally conservative in 0.1 and prints commands instead of silently executing arbitrary verify steps.
+
 ### Example: Replace A Line Range
 
 ```yaml
 version: 1
+task: replace-one-line
+description: "Replace one line in a temp file."
 ops:
-  - kind: replace_range
+  - id: replace-b-line
+    kind: replace_range
     path: tmp.txt
     start_line: 2
     end_line: 2
+    expected_hash: "11d3d664"
+    context_before: "a"
+    context_after: "c"
     content: |
       B
+verify:
+  - Get-Content .\tmp.txt
 ```
 
 ### Example: Create A File
@@ -819,7 +904,8 @@ ops:
 ```yaml
 version: 1
 ops:
-  - kind: create_file
+  - id: create-new-panel
+    kind: create_file
     path: crates/apps/amigo-editor/src/example/NewPanel.tsx
     content: |
       export function NewPanel() {
@@ -832,7 +918,8 @@ ops:
 ```yaml
 version: 1
 ops:
-  - kind: insert_after_anchor
+  - id: add-properties-panel-import
+    kind: insert_after_anchor
     path: crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx
     anchor: "// @codemap anchor:properties-registry domain:properties role:registry"
     content: |
@@ -845,7 +932,8 @@ ops:
 version: 1
 task: replace-registry-section
 ops:
-  - kind: replace_between_anchors
+  - id: replace-properties-registry-section
+    kind: replace_between_anchors
     path: crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx
     start_anchor: "// @codemap anchor:properties-registry-start domain:properties role:registry"
     end_anchor: "// @codemap anchor:properties-registry-end domain:properties role:registry"
@@ -890,9 +978,11 @@ The code changes should live in `plan.yml` whenever practical. Prose should expl
 ```yaml
 version: 1
 ops:
-  - kind: replace_symbol
+  - id: replace-scan-symbols
+    kind: replace_symbol
     path: crates/tools/amigo-codemap/src/scan/symbols.rs
     symbol: scan_symbols
+    expected_hash: "11d3d664"
     content: |
       pub fn scan_symbols(...) -> Result<Vec<SymbolEntry>> {
           todo!("new implementation")
@@ -904,7 +994,8 @@ Before symbol-aware ops, run:
 ```powershell
 & $cm signature scan_symbols
 & $cm slice crates/tools/amigo-codemap/src/scan/symbols.rs --symbol scan_symbols
-& $cm ops-check --from plan.yml
+& $cm range-for-symbol scan_symbols
+& $cm ops-check --from plan.yml --strict
 ```
 
 Prefer, in order:
