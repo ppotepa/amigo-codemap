@@ -434,6 +434,8 @@ Use when you need signature, parameters, return type, generics, visibility, owne
 
 Use when the file is large or only one function/method/component matters.
 
+`slice --symbol` accepts exact names and normalized names such as camelCase vs snake_case. If a symbol is not found, it prints nearby symbols from the same file with similarity scores and suggests retrying with one of them.
+
 ### Step 7: Check Impact
 
 ```powershell
