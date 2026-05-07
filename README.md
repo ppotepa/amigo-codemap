@@ -1050,6 +1050,8 @@ These results compare codemap-first discovery against a focused standard workflo
 
 Short version: codemap does not mainly reduce command count. It reduces how much code the agent must read before it can safely edit.
 
+Each benchmark below is recorded separately. The standard path was intentionally reasonable and focused, not a deliberately bad baseline.
+
 ### Methods
 
 Each task is executed twice:
@@ -1143,6 +1145,15 @@ Get-Content crates/apps/amigo-editor/src/api/dto.ts
 
 Expected savings: 35-55% fewer context tokens.
 
+Actual discovery benchmark:
+
+| Method | Commands | Files opened | Lines read | Terminal chars | Est. tokens | Result |
+|---|---:|---:|---:|---:|---:|---|
+| codemap-first | 7 | 2 | 25 | 3764 | 941 | pass |
+| standard | 5 | 4 | 2159 | 63495 | 15874 | pass |
+
+Result: codemap-first used ~94.1% fewer estimated context tokens. It avoided opening full DTO/source files and read only the two symbol slices needed for first-pass implementation.
+
 ### Task 2: Scene Editor Real-Snapshot Guard
 
 Size: medium, 5 implementation steps.
@@ -1163,7 +1174,8 @@ Run-Measured "impact" "$cm impact layoutSource --limit 30"
 & $cm slice crates/apps/amigo-editor/src/api/dto.ts --symbol EditorSceneSnapshotDto
 & $cm slice crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorModel.ts --symbol buildSceneEditorModel
 & $cm slice crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx --symbol SceneEditorCanvas
-& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs --symbol build_editor_scene_snapshot
+& $cm symbols --file crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs --metadata --limit 10
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs --symbol fallback_editor_snapshot
 ```
 
 Standard:
@@ -1181,6 +1193,15 @@ Get-Content crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs
 ```
 
 Expected savings: 40-60% fewer context tokens.
+
+Actual discovery benchmark:
+
+| Method | Commands | Files opened | Lines read | Terminal chars | Est. tokens | Result |
+|---|---:|---:|---:|---:|---:|---|
+| codemap-first | 10 | 5 | 230 | 15034 | 3759 | pass |
+| standard | 9 | 8 | 3509 | 154241 | 38561 | pass |
+
+Result: codemap-first used ~90.2% fewer estimated context tokens. `symbols --file --metadata` also corrected the planned backend symbol from a stale guess to the actual `fallback_editor_snapshot` symbol.
 
 ### Task 3: Editor Pointer Fast-Path
 
@@ -1203,8 +1224,9 @@ Run-Measured "impact" "$cm impact sendEditorPointerEvent --limit 40"
 & $cm slice crates/apps/amigo-editor/src/main-window/hooks/useEditorModeCommands.ts --symbol useEditorModeCommands
 & $cm slice crates/apps/amigo-editor/src/features/scenes/editor/useSceneEditorPointerEvents.ts --symbol useSceneEditorPointerEvents
 & $cm slice crates/apps/amigo-editor/src/features/scenes/editor/SceneEditorCanvas.tsx --symbol SceneEditorCanvas
-& $cm slice crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs --symbol send_editor_pointer_event
-& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/input.rs --symbol handle_pointer_event
+& $cm symbols --file crates/apps/amigo-editor/src-tauri/src/commands/editor_mode.rs --metadata --limit 12
+& $cm symbols --file crates/apps/amigo-editor/src-tauri/src/editor_mode/input.rs --metadata --limit 18
+& $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/input.rs --symbol handle_pointer_move
 & $cm slice crates/apps/amigo-editor/src-tauri/src/editor_mode/session.rs --symbol EditorModeSession
 ```
 
@@ -1228,6 +1250,15 @@ Get-Content crates/apps/amigo-editor/src-tauri/src/editor_mode/snapshot.rs
 ```
 
 Expected savings: 45-65% fewer context tokens.
+
+Actual discovery benchmark:
+
+| Method | Commands | Files opened | Lines read | Terminal chars | Est. tokens | Result |
+|---|---:|---:|---:|---:|---:|---|
+| codemap-first | 13 | 7 | 822 | 56838 | 14210 | pass |
+| standard | 14 | 13 | 4775 | 317610 | 79403 | pass |
+
+Result: codemap-first used ~82.1% fewer estimated context tokens. The main gain came from reading symbol metadata and narrow slices instead of full Tauri/editor-mode files.
 
 ### Result Template
 
@@ -1260,12 +1291,12 @@ Final comparison table:
 
 | Task | Steps | Method | Files opened | Lines read | Est. tokens | Commands | Result |
 |---|---:|---|---:|---:|---:|---:|---|
-| Snapshot label | 3 | codemap | 3 | 140 | 2.3k | 9 | pass |
-| Snapshot label | 3 | standard | 7 | 850 | 8.8k | 11 | pass |
-| Fallback guard | 5 | standard | 10 | 1800 | 15k | 14 | pass |
-| Fallback guard | 5 | codemap | 5 | 420 | 5.8k | 10 | pass |
-| Pointer fast-path | 10 | codemap | 8 | 950 | 11k | 16 | pass |
-| Pointer fast-path | 10 | standard | 17 | 5200 | 42k | 24 | pass |
+| Snapshot label | 3 | codemap | 2 | 25 | 941 | 7 | pass |
+| Snapshot label | 3 | standard | 4 | 2159 | 15874 | 5 | pass |
+| Fallback guard | 5 | codemap | 5 | 230 | 3759 | 10 | pass |
+| Fallback guard | 5 | standard | 8 | 3509 | 38561 | 9 | pass |
+| Pointer fast-path | 10 | codemap | 7 | 822 | 14210 | 13 | pass |
+| Pointer fast-path | 10 | standard | 13 | 4775 | 79403 | 14 | pass |
 
 ## Minimal 0.1 Release Smoke Test
 
