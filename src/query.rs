@@ -10,6 +10,31 @@ pub struct QueryTerm {
     pub negated: bool,
 }
 
+pub fn descriptive_tokens(input: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let normalized = input.replace(['_', '-'], " ");
+
+    for token in normalized
+        .split(|char: char| !char.is_ascii_alphanumeric())
+        .map(str::trim)
+        .filter(|token| token.len() >= 3)
+        .filter(|token| !is_query_stopword(token))
+    {
+        push_unique_token(&mut tokens, token.to_ascii_lowercase());
+        for part in split_camel_token(token) {
+            if part.len() >= 3 && !is_query_stopword(&part) {
+                push_unique_token(&mut tokens, part);
+            }
+        }
+    }
+
+    for phrase in descriptive_phrases(input) {
+        push_unique_token(&mut tokens, phrase);
+    }
+
+    tokens
+}
+
 impl Query {
     pub fn parse(input: Option<&str>) -> Self {
         let terms = input
@@ -107,6 +132,80 @@ fn eq_or_contains_ci(value: &str, needle: &str) -> bool {
     value == needle || value.contains(needle)
 }
 
+fn descriptive_phrases(input: &str) -> Vec<String> {
+    let lower = input.to_ascii_lowercase().replace(['_', '-'], " ");
+    let phrase_rules = [
+        (["ui", "document"].as_slice(), "ui-document"),
+        (["scene", "editor"].as_slice(), "scene-editor"),
+        (["editor", "mode"].as_slice(), "editor-mode"),
+        (["main", "window"].as_slice(), "main-window"),
+        (["open", "set"].as_slice(), "open-set"),
+        (["change", "plan"].as_slice(), "change-plan"),
+        (["node", "kind"].as_slice(), "node-kind"),
+        (["scoped", "view"].as_slice(), "scoped-view"),
+        (["scoped", "viewer"].as_slice(), "scoped-view"),
+        (["real", "tree"].as_slice(), "real-tree"),
+        (["yaml", "tree"].as_slice(), "yaml-driven"),
+    ];
+
+    phrase_rules
+        .iter()
+        .filter_map(|(needles, phrase)| {
+            needles
+                .iter()
+                .all(|needle| lower.split_whitespace().any(|part| part == *needle))
+                .then(|| (*phrase).to_string())
+        })
+        .collect()
+}
+
+fn split_camel_token(token: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut previous_was_lowercase = false;
+
+    for char in token.chars() {
+        if char.is_ascii_uppercase() && previous_was_lowercase {
+            push_unique_token(&mut parts, current);
+            current = String::new();
+        }
+        if char.is_ascii_alphanumeric() {
+            previous_was_lowercase = char.is_ascii_lowercase() || char.is_ascii_digit();
+            current.extend(char.to_lowercase());
+        }
+    }
+
+    push_unique_token(&mut parts, current);
+    parts
+}
+
+fn push_unique_token(tokens: &mut Vec<String>, token: String) {
+    if !token.is_empty() && !tokens.iter().any(|item| item == &token) {
+        tokens.push(token);
+    }
+}
+
+fn is_query_stopword(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "and"
+            | "the"
+            | "for"
+            | "with"
+            | "from"
+            | "mode"
+            | "flow"
+            | "query"
+            | "task"
+            | "real"
+            | "view"
+            | "viewer"
+            | "node"
+            | "change"
+            | "changes"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::Query;
@@ -135,5 +234,16 @@ mod tests {
             None,
             &["domain:workspace".to_string()]
         ));
+    }
+
+    #[test]
+    fn descriptive_tokens_include_domain_phrases() {
+        let tokens =
+            super::descriptive_tokens("ui document real yaml tree icons scoped node viewer");
+
+        assert!(tokens.iter().any(|token| token == "ui-document"));
+        assert!(tokens.iter().any(|token| token == "yaml-driven"));
+        assert!(tokens.iter().any(|token| token == "scoped-view"));
+        assert!(tokens.iter().any(|token| token == "icons"));
     }
 }

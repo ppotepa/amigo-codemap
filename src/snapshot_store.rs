@@ -72,15 +72,13 @@ pub fn load_or_scan(options: &Options) -> Result<LoadedMap> {
         if let Some(envelope) = read_snapshot(options)? {
             if snapshot_is_usable(options, &envelope) {
                 if snapshot_may_be_stale(options) {
-                    eprintln!(
-                        "warning: codemap snapshot may be stale; run `amigo-codemap refresh` or keep `amigo-codemap watch --write` running"
-                    );
+                    eprintln!("codemap snapshot is stale; refreshing before running report");
+                } else {
+                    return Ok(LoadedMap {
+                        map: envelope.map,
+                        source: MapSource::Snapshot,
+                    });
                 }
-
-                return Ok(LoadedMap {
-                    map: envelope.map,
-                    source: MapSource::Snapshot,
-                });
             }
         }
     }
@@ -139,7 +137,7 @@ pub fn print_status(options: &Options) -> Result<()> {
     }
 
     if snapshot_may_be_stale(options) {
-        println!("  stale: maybe");
+        println!("  stale: yes");
         println!("  next: amigo-codemap refresh or amigo-codemap watch --write");
     } else {
         println!("  stale: no");
@@ -174,7 +172,64 @@ pub fn snapshot_may_be_stale(options: &Options) -> bool {
         }
     }
 
-    false
+    source_tree_modified_after(&options.root, snapshot_modified).unwrap_or(true)
+}
+
+fn source_tree_modified_after(root: &Path, snapshot_modified: SystemTime) -> Result<bool> {
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if should_skip_snapshot_stale_path(root, &path) {
+                continue;
+            }
+            let metadata = entry.metadata()?;
+            if metadata.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if is_codemap_source_file(&path)
+                && metadata
+                    .modified()
+                    .is_ok_and(|modified| modified > snapshot_modified)
+            {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+fn should_skip_snapshot_stale_path(root: &Path, path: &Path) -> bool {
+    let relative = path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/");
+    relative.starts_with(".git/")
+        || relative == ".git"
+        || relative.starts_with(".amigo/")
+        || relative == ".amigo"
+        || relative.starts_with("target/")
+        || relative == "target"
+        || relative.contains("/node_modules/")
+        || relative.ends_with("/node_modules")
+        || relative.starts_with("node_modules/")
+        || relative.starts_with("dist/")
+        || relative.starts_with("build/")
+        || relative.starts_with("coverage/")
+}
+
+fn is_codemap_source_file(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| {
+        matches!(
+            ext.to_string_lossy().to_ascii_lowercase().as_str(),
+            "rs" | "ts" | "tsx" | "css" | "md" | "toml" | "yaml" | "yml" | "rhai"
+        )
+    })
 }
 
 fn normalize_path(path: &Path) -> String {

@@ -71,6 +71,10 @@ fn scan_rust(
         if trimmed.starts_with("//") {
             continue;
         }
+        if let Some(symbol) = scan_rust_field(file, level, patterns, &lines, line_index, trimmed) {
+            symbols.push(symbol);
+            continue;
+        }
         for regex in &patterns.items {
             if let Some(caps) = regex.captures(trimmed) {
                 let visibility = caps
@@ -120,6 +124,10 @@ fn scan_ts(
         if trimmed.starts_with("//") {
             continue;
         }
+        if let Some(symbol) = scan_ts_field(file, level, patterns, &lines, line_index, trimmed) {
+            symbols.push(symbol);
+            continue;
+        }
         for regex in &patterns.items {
             if let Some(caps) = regex.captures(trimmed) {
                 let visibility = if caps.name("export").is_some() {
@@ -153,6 +161,62 @@ fn scan_ts(
         }
     }
     Ok(symbols)
+}
+
+fn scan_rust_field(
+    file: &FileEntry,
+    level: u8,
+    patterns: &RustPatterns,
+    lines: &[&str],
+    line_index: usize,
+    trimmed: &str,
+) -> Option<SymbolEntry> {
+    let caps = patterns.field.captures(trimmed)?;
+    let owner = rust_struct_owner_at(lines, line_index)?;
+    let visibility = caps
+        .name("vis")
+        .map(|m| m.as_str().trim().to_string())
+        .unwrap_or_else(|| "local".to_string());
+    if level == 1 && visibility != "pub" {
+        return None;
+    }
+    let line_number = line_index + 1;
+    Some(build_symbol(
+        file,
+        caps["name"].to_string(),
+        "field".to_string(),
+        line_number,
+        visibility,
+        Some(owner),
+        one_line_signature(trimmed, line_number, 75),
+        Vec::new(),
+    ))
+}
+
+fn scan_ts_field(
+    file: &FileEntry,
+    level: u8,
+    patterns: &TsPatterns,
+    lines: &[&str],
+    line_index: usize,
+    trimmed: &str,
+) -> Option<SymbolEntry> {
+    let caps = patterns.field.captures(trimmed)?;
+    let owner = ts_object_owner_at(lines, line_index)?;
+    if level == 1 && !owner.starts_with("interface ") {
+        return None;
+    }
+    let line_number = line_index + 1;
+    Some(build_symbol(
+        file,
+        caps["name"].to_string(),
+        "field".to_string(),
+        line_number,
+        "local".to_string(),
+        Some(owner),
+        one_line_signature(trimmed, line_number, 75),
+        Vec::new(),
+    ))
 }
 
 fn scan_yaml(root: &Path, file: &FileEntry, patterns: &YamlPatterns) -> Result<Vec<SymbolEntry>> {
@@ -299,6 +363,28 @@ fn rust_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
     None
 }
 
+fn rust_struct_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
+    let owner_re =
+        Regex::new(r"^\s*(?:pub\s+)?(?P<kind>struct|enum)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)")
+            .ok()?;
+    for index in (0..line_index).rev().take(160) {
+        let line = lines[index].trim_start();
+        if line.starts_with("fn ")
+            || line.starts_with("pub fn ")
+            || line.starts_with("impl ")
+            || line.starts_with("pub impl ")
+            || line.starts_with("trait ")
+            || line.starts_with("pub trait ")
+        {
+            return None;
+        }
+        if let Some(caps) = owner_re.captures(line) {
+            return Some(format!("{} {}", &caps["kind"], &caps["name"]));
+        }
+    }
+    None
+}
+
 fn ts_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
     let owner_re = Regex::new(
         r"^\s*(?:export\s+)?(?P<kind>class|interface|type)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)",
@@ -306,6 +392,27 @@ fn ts_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
     .ok()?;
     for index in (0..line_index).rev().take(120) {
         let line = lines[index].trim_start();
+        if let Some(caps) = owner_re.captures(line) {
+            return Some(format!("{} {}", &caps["kind"], &caps["name"]));
+        }
+    }
+    None
+}
+
+fn ts_object_owner_at(lines: &[&str], line_index: usize) -> Option<String> {
+    let owner_re = Regex::new(
+        r"^\s*(?:export\s+)?(?P<kind>interface|type)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)",
+    )
+    .ok()?;
+    for index in (0..line_index).rev().take(160) {
+        let line = lines[index].trim_start();
+        if line.starts_with("function ")
+            || line.starts_with("export function ")
+            || line.starts_with("class ")
+            || line.starts_with("export class ")
+        {
+            return None;
+        }
         if let Some(caps) = owner_re.captures(line) {
             return Some(format!("{} {}", &caps["kind"], &caps["name"]));
         }
@@ -485,6 +592,7 @@ fn classify_ts_name(name: &str, language: &str) -> String {
 
 struct RustPatterns {
     items: Vec<Regex>,
+    field: Regex,
 }
 
 impl RustPatterns {
@@ -504,12 +612,16 @@ impl RustPatterns {
                     r"^(?P<vis>pub\s+)?(?P<kind>macro_rules!)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)",
                 )?,
             ],
+            field: Regex::new(
+                r"^(?P<vis>pub(?:\([^)]*\))?\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*[^,]+,?\s*$",
+            )?,
         })
     }
 }
 
 struct TsPatterns {
     items: Vec<Regex>,
+    field: Regex,
 }
 
 impl TsPatterns {
@@ -526,6 +638,9 @@ impl TsPatterns {
                     r"^(?P<export>export\s+)?(?P<kind>type|interface|enum|class)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)",
                 )?,
             ],
+            field: Regex::new(
+                r"^(?:readonly\s+)?(?P<name>[A-Za-z_$][A-Za-z0-9_$]*)\??\s*:\s*.+[,;]?\s*$",
+            )?,
         })
     }
 }
@@ -559,12 +674,74 @@ impl YamlPatterns {
 
 #[cfg(test)]
 mod tests {
-    use super::classify_ts_name;
+    use std::path::{Path, PathBuf};
+
+    use crate::model::FileEntry;
+
+    use super::{RustPatterns, TsPatterns, classify_ts_name, scan_rust, scan_ts};
 
     #[test]
     fn classifies_tsx_components_and_hooks() {
         assert_eq!(classify_ts_name("StartupDialog", "tsx"), "component");
         assert_eq!(classify_ts_name("useEditorStore", "tsx"), "hook");
         assert_eq!(classify_ts_name("scanMods", "ts"), "fn");
+    }
+
+    #[test]
+    fn scans_ts_interface_fields() {
+        let root = temp_root("ts-fields");
+        std::fs::write(
+            root.join("dto.ts"),
+            "export interface EditorUiNodeDto {\n  actionTarget?: string | null;\n}\n",
+        )
+        .expect("write ts");
+        let file = FileEntry {
+            id: "f1".to_string(),
+            path: PathBuf::from("dto.ts"),
+            language: "ts".to_string(),
+            ..Default::default()
+        };
+
+        let symbols = scan_ts(Path::new(&root), &file, 2, &TsPatterns::new().unwrap()).unwrap();
+
+        assert!(symbols.iter().any(|symbol| {
+            symbol.name == "actionTarget"
+                && symbol.kind == "field"
+                && symbol.owner.as_deref() == Some("interface EditorUiNodeDto")
+        }));
+    }
+
+    #[test]
+    fn scans_rust_struct_fields() {
+        let root = temp_root("rust-fields");
+        std::fs::write(
+            root.join("dto.rs"),
+            "pub struct EditorUiNodeDto {\n    pub action_target: Option<String>,\n}\n",
+        )
+        .expect("write rs");
+        let file = FileEntry {
+            id: "f1".to_string(),
+            path: PathBuf::from("dto.rs"),
+            language: "rs".to_string(),
+            ..Default::default()
+        };
+
+        let symbols = scan_rust(Path::new(&root), &file, 2, &RustPatterns::new().unwrap()).unwrap();
+
+        assert!(symbols.iter().any(|symbol| {
+            symbol.name == "action_target"
+                && symbol.kind == "field"
+                && symbol.owner.as_deref() == Some("struct EditorUiNodeDto")
+        }));
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should advance")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("amigo-codemap-symbols-{name}-{unique}"));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 }

@@ -12,6 +12,7 @@ pub struct Options {
     pub query: Option<String>,
     pub group: Option<String>,
     pub lines: bool,
+    pub line_range: Option<String>,
     pub limit: usize,
     pub verify_args: Vec<String>,
     pub changed_only: bool,
@@ -129,6 +130,7 @@ impl Cli {
         let mut query = None;
         let mut group = None;
         let mut lines = false;
+        let mut line_range = None;
         let mut limit = 80;
         let mut verify_args = Vec::new();
         let mut changed_only = false;
@@ -304,7 +306,15 @@ impl Cli {
                     index += 1;
                     query = Some(required_value(&args, index, "--query")?);
                 }
-                "--lines" => lines = true,
+                "--lines" => {
+                    lines = true;
+                    if args.get(index + 1).is_some_and(|value| {
+                        !value.starts_with('-') && parse_command_name(value).is_none()
+                    }) {
+                        index += 1;
+                        line_range = Some(required_value(&args, index, "--lines")?);
+                    }
+                }
                 "--changed" => changed_only = true,
                 "--patterns" => {
                     index += 1;
@@ -429,6 +439,7 @@ impl Cli {
                 query,
                 group,
                 lines,
+                line_range,
                 limit,
                 verify_args,
                 changed_only,
@@ -726,6 +737,21 @@ mod tests {
         .expect("cli should parse");
 
         assert!(cli.options.no_cache);
+    }
+
+    #[test]
+    fn parses_slice_line_range() {
+        let cli = Cli::parse([
+            "slice".to_string(),
+            "src/main.rs".to_string(),
+            "--lines".to_string(),
+            "10:20".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Slice);
+        assert!(cli.options.lines);
+        assert_eq!(cli.options.line_range.as_deref(), Some("10:20"));
     }
 
     #[test]

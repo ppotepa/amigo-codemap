@@ -15,6 +15,7 @@ pub fn print_slice(
     map: &CodeMap,
     query: &str,
     symbol: Option<&str>,
+    line_range: Option<&str>,
     radius: usize,
 ) -> Result<()> {
     let file = find_file_by_path(map, query)
@@ -22,6 +23,16 @@ pub fn print_slice(
     let path = file.path.clone();
     let text = read_text_at_root(root, &path)?;
     let symbols = symbols_in_file(map, &file.id);
+    if let Some(line_range) = line_range {
+        let (start, end) = parse_line_range(line_range)?;
+        for (index, line_text) in text.lines().enumerate() {
+            let line_no = index + 1;
+            if line_no >= start && line_no <= end {
+                println!("{line_no}: {line_text}");
+            }
+        }
+        return Ok(());
+    }
     if let Some(symbol_name) = symbol {
         let Some(target) = find_symbol_match(&symbols, symbol_name) else {
             let suggestions = symbol_suggestions(&symbols, symbol_name, 8);
@@ -141,6 +152,18 @@ pub fn print_slice(
     });
 
     Ok(())
+}
+
+fn parse_line_range(value: &str) -> Result<(usize, usize)> {
+    let Some((start, end)) = value.split_once(':').or_else(|| value.split_once('-')) else {
+        anyhow::bail!("--lines requires a range like 10:20");
+    };
+    let start = start.trim().parse::<usize>()?;
+    let end = end.trim().parse::<usize>()?;
+    if start == 0 || end == 0 || start > end {
+        anyhow::bail!("--lines requires a valid 1-based range like 10:20");
+    }
+    Ok((start, end))
 }
 
 fn find_symbol_match<'a>(symbols: &'a [&'a SymbolEntry], query: &str) -> Option<&'a SymbolEntry> {
@@ -315,7 +338,7 @@ fn push_symbol_token(tokens: &mut Vec<String>, current: &mut String) {
 mod tests {
     use crate::test_support::{test_file, test_map, test_symbol_with_range};
 
-    use super::{find_symbol_match, symbol_suggestions};
+    use super::{find_symbol_match, parse_line_range, symbol_suggestions};
 
     #[test]
     fn fuzzy_symbol_match_handles_case_and_separator_drift() {
@@ -328,6 +351,13 @@ mod tests {
             .expect("symbol should fuzzy match");
 
         assert_eq!(matched.name, "fallback_editor_snapshot");
+    }
+
+    #[test]
+    fn parses_line_range_aliases() {
+        assert_eq!(parse_line_range("10:20").unwrap(), (10, 20));
+        assert_eq!(parse_line_range("10-20").unwrap(), (10, 20));
+        assert!(parse_line_range("20:10").is_err());
     }
 
     #[test]

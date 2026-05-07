@@ -454,6 +454,7 @@ fn main() -> Result<()> {
                 &map,
                 query,
                 cli.options.symbol.as_deref(),
+                cli.options.line_range.as_deref(),
                 cli.options.radius,
             )?;
         }

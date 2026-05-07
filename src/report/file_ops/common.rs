@@ -30,7 +30,7 @@ pub fn text_refs_like(
         return Ok(refs);
     }
     let changed = changed_by_path(map);
-    let query = query.to_string();
+    let query = query.to_ascii_lowercase();
 
     for file in &map.files {
         if refs.len() >= limit {
@@ -40,7 +40,7 @@ pub fn text_refs_like(
         let path_text = slash_path(&file.path);
         let text = read_text_at_root(root, &file.path)?;
         for (line, content) in text.lines().enumerate() {
-            if content.contains(&query) {
+            if content.to_ascii_lowercase().contains(&query) {
                 refs.push(FileRef {
                     path: file.path.clone(),
                     line: line + 1,

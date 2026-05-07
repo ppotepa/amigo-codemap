@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::model::CodeMap;
+use crate::query::descriptive_tokens;
 use crate::report::common::{feature_group, is_codemap, is_docs, is_test_file, slash_path};
 
 use crate::report::anchors::{anchor_entry_matches, anchor_priority_score, build_anchor_index};
@@ -36,15 +37,41 @@ fn build_open_set_report(
     let changed_paths = changed_by_path(map);
     let changed_status = changed_status_by_path(map);
     let refs = text_refs_like(root, map, query, usize::MAX).unwrap_or_default();
+    let query_tokens = descriptive_tokens(query);
+    let text_query_tokens = if query.split_whitespace().count() > 1 {
+        open_set_text_tokens(&query_tokens)
+    } else {
+        Vec::new()
+    };
+    let anchor_query_tokens = if query.split_whitespace().count() > 1 {
+        query_tokens.as_slice()
+    } else {
+        &[]
+    };
 
     let mut definition_paths = BTreeSet::<String>::new();
     let mut ref_counts = BTreeMap::<String, usize>::new();
     let mut anchor_scores = BTreeMap::<String, (i32, Vec<String>)>::new();
+    let mut token_scores = BTreeMap::<String, (i32, Vec<String>)>::new();
     let mut skip = BTreeSet::<String>::new();
 
-    for symbol in map.symbols.iter().filter(|symbol| symbol.name == query) {
+    for symbol in map.symbols.iter().filter(|symbol| {
+        symbol.name == query
+            || query_tokens
+                .iter()
+                .any(|token| symbol_name_matches_query(&symbol.name, token))
+    }) {
         if let Some(file) = map.files.iter().find(|file| file.id == symbol.file_id) {
-            definition_paths.insert(slash_path(&file.path));
+            let path = slash_path(&file.path);
+            definition_paths.insert(path.clone());
+            if symbol.name != query {
+                add_score(
+                    &mut token_scores,
+                    path,
+                    70,
+                    format!("symbol-token:{}", symbol.name),
+                );
+            }
         }
     }
 
@@ -61,10 +88,26 @@ fn build_open_set_report(
         *ref_counts.entry(path).or_default() += 1;
     }
 
+    for token in &text_query_tokens {
+        for reference in text_refs_like(root, map, token, usize::MAX).unwrap_or_default() {
+            let path = slash_path(&reference.path);
+            if should_skip_open_set_path(&path, editor_def) {
+                skip.insert(path);
+                continue;
+            }
+            *ref_counts.entry(path.clone()).or_default() += 1;
+            add_score(&mut token_scores, path, 12, format!("text-token:{token}"));
+        }
+    }
+
     let taxonomy = CodemapTaxonomy::try_load(root);
     let anchor_index = build_anchor_index(map, taxonomy.as_ref());
     for anchor in &anchor_index.anchors {
-        if !anchor_entry_matches(anchor, query) {
+        let matched_by_query = anchor_entry_matches(anchor, query);
+        let matched_by_token = anchor_query_tokens
+            .iter()
+            .any(|token| anchor_entry_matches(anchor, token));
+        if !matched_by_query && !matched_by_token {
             continue;
         }
 
@@ -80,6 +123,10 @@ fn build_open_set_report(
         if anchor.anchor.eq_ignore_ascii_case(query) {
             score += 100;
             reasons.push("exact-anchor".to_string());
+        }
+        if matched_by_token {
+            score += 80;
+            reasons.push("anchor-token".to_string());
         }
 
         reasons.push(format!("domain:{}", anchor.domain));
@@ -100,6 +147,7 @@ fn build_open_set_report(
         &changed_status,
         &ref_counts,
         &anchor_scores,
+        &token_scores,
         editor_def,
     );
 
@@ -220,6 +268,7 @@ fn rank_open_set_items(
     changed_status: &BTreeMap<String, String>,
     ref_counts: &BTreeMap<String, usize>,
     anchor_scores: &BTreeMap<String, (i32, Vec<String>)>,
+    token_scores: &BTreeMap<String, (i32, Vec<String>)>,
     editor_def: bool,
 ) -> BTreeMap<String, (i32, Vec<String>)> {
     let mut scores = BTreeMap::<String, (i32, Vec<String>)>::new();
@@ -317,7 +366,63 @@ fn rank_open_set_items(
             .or_insert((*anchor_score, anchor_reasons.clone()));
     }
 
+    for (path, (token_score, token_reasons)) in token_scores {
+        if should_skip_open_set_path(path, editor_def) {
+            continue;
+        }
+
+        scores
+            .entry(path.clone())
+            .and_modify(|entry| {
+                entry.0 += *token_score;
+                entry.1.extend(token_reasons.clone());
+            })
+            .or_insert((*token_score, token_reasons.clone()));
+    }
+
     scores
+}
+
+fn add_score(
+    scores: &mut BTreeMap<String, (i32, Vec<String>)>,
+    path: String,
+    score: i32,
+    reason: String,
+) {
+    scores
+        .entry(path)
+        .and_modify(|entry| {
+            entry.0 += score;
+            if !entry.1.iter().any(|item| item == &reason) {
+                entry.1.push(reason.clone());
+            }
+        })
+        .or_insert((score, vec![reason]));
+}
+
+fn symbol_name_matches_query(name: &str, query: &str) -> bool {
+    name == query || normalize_identifier(name) == normalize_identifier(query)
+}
+
+fn open_set_text_tokens(tokens: &[String]) -> Vec<String> {
+    tokens
+        .iter()
+        .filter(|token| {
+            !matches!(
+                token.as_str(),
+                "document" | "yaml" | "tree" | "real" | "viewer" | "node"
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn normalize_identifier(value: &str) -> String {
+    value
+        .chars()
+        .filter(|char| char.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn should_skip_open_set_path(path: &str, editor_def: bool) -> bool {
@@ -390,6 +495,7 @@ mod tests {
             &changed_status,
             &refs,
             &BTreeMap::new(),
+            &BTreeMap::new(),
             true,
         );
         let first = ranked
@@ -419,6 +525,7 @@ mod tests {
             &BTreeSet::new(),
             &BTreeMap::new(),
             &refs,
+            &BTreeMap::new(),
             &BTreeMap::new(),
             true,
         );
