@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry};
+use crate::report::anchors::tag_matches_query;
 
 pub fn print_trace(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
     if query.trim().is_empty() {
@@ -67,20 +68,21 @@ pub fn print_trace(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
         }
     }
 
-    println!("matched codemap anchors:");
+    println!("matched anchors:");
     let mut tag_count = 0usize;
     for tag in &map.tags {
-        let haystack = format!("{} {:?}", tag.name, tag.values).to_ascii_lowercase();
-        if haystack.contains(&query_lower) {
+        if tag_matches_query(tag, query) {
             tag_count += 1;
             if tag_count <= limit {
                 let file = files.get(tag.file_id.as_str());
                 println!(
-                    "  {} {}:{} {:?}",
-                    tag.name,
+                    "  {} {} domain={} role={} file={}:{}",
+                    tag.priority.as_deref().unwrap_or("P2"),
+                    tag.anchor,
+                    tag.domain.as_deref().unwrap_or("-"),
+                    tag.role.as_deref().unwrap_or("-"),
                     file.map(path_of).unwrap_or_else(|| "-".to_string()),
-                    tag.line,
-                    tag.values,
+                    tag.line
                 );
             }
         }

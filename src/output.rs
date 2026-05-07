@@ -101,10 +101,22 @@ pub fn to_json(map: &CodeMap) -> Value {
         "tags": map.tags.iter().map(|tag| {
             json!([
                 tag.name,
+                tag.anchor,
                 tag.file_id,
                 tag.line,
                 tag.target,
+                tag.domain,
+                tag.role,
+                tag.priority,
+                tag.layer,
+                tag.status,
+                tag.risk,
+                tag.owner,
+                tag.tags,
                 tag.values,
+                tag.raw,
+                tag.generated,
+                tag.confidence,
             ])
         }).collect::<Vec<_>>(),
         "d": map.dependencies.iter().map(|dep| {

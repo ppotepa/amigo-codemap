@@ -34,6 +34,45 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["append-plan", "operations-summary", "docs"],
     },
     CommandDescriptor {
+        name: "taxonomy",
+        category: "meta",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/taxonomy.rs",
+            "crates/tools/amigo-codemap/src/report/taxonomy_report.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["anchors", "anchor-check", "command-map"],
+    },
+    CommandDescriptor {
+        name: "anchors",
+        category: "meta",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/anchors.rs",
+            "crates/tools/amigo-codemap/src/scan/codemap_tags.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["taxonomy", "anchor-check", "trace", "open-set"],
+    },
+    CommandDescriptor {
+        name: "anchor-check",
+        category: "meta",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/anchor_check.rs",
+            "crates/tools/amigo-codemap/src/taxonomy.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["anchors", "taxonomy", "trace"],
+    },
+    CommandDescriptor {
         name: "symbols",
         category: "navigation",
         cli_paths: CLI_PATH,
@@ -514,6 +553,17 @@ mod tests {
     #[test]
     fn catalog_contains_command_map() {
         assert!(COMMANDS.iter().any(|command| command.name == "command-map"));
+    }
+
+    #[test]
+    fn catalog_contains_anchor_commands() {
+        assert!(COMMANDS.iter().any(|command| command.name == "anchors"));
+        assert!(
+            COMMANDS
+                .iter()
+                .any(|command| command.name == "anchor-check")
+        );
+        assert!(COMMANDS.iter().any(|command| command.name == "taxonomy"));
     }
 
     #[test]

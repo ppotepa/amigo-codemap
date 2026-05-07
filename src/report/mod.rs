@@ -7,6 +7,8 @@ use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 
+pub mod anchor_check;
+pub mod anchors;
 pub mod api_surface;
 pub mod callsite_candidates;
 pub mod change_plan;
@@ -29,6 +31,7 @@ pub mod summary;
 pub mod symbols;
 pub mod tauri;
 pub mod tauri_graph;
+pub mod taxonomy_report;
 pub mod todo_index;
 pub mod trace;
 pub mod verify_plan;

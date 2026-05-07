@@ -6,6 +6,9 @@ use anyhow::Result;
 use crate::model::CodeMap;
 use crate::report::common::{feature_group, is_codemap, is_docs, is_test_file, slash_path};
 
+use crate::report::anchors::{anchor_entry_matches, anchor_priority_score, build_anchor_index};
+use crate::taxonomy::CodemapTaxonomy;
+
 use super::common::{changed_by_path, changed_status_by_path, text_refs_like};
 use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
 
@@ -36,6 +39,7 @@ fn build_open_set_report(
 
     let mut definition_paths = BTreeSet::<String>::new();
     let mut ref_counts = BTreeMap::<String, usize>::new();
+    let mut anchor_scores = BTreeMap::<String, (i32, Vec<String>)>::new();
     let mut skip = BTreeSet::<String>::new();
 
     for symbol in map.symbols.iter().filter(|symbol| symbol.name == query) {
@@ -57,11 +61,45 @@ fn build_open_set_report(
         *ref_counts.entry(path).or_default() += 1;
     }
 
+    let taxonomy = CodemapTaxonomy::try_load(root);
+    let anchor_index = build_anchor_index(map, taxonomy.as_ref());
+    for anchor in &anchor_index.anchors {
+        if !anchor_entry_matches(anchor, query) {
+            continue;
+        }
+
+        let path = anchor.file.clone();
+        if should_skip_open_set_path(&path, editor_def) {
+            skip.insert(path);
+            continue;
+        }
+
+        let mut score = anchor_priority_score(&anchor.priority);
+        let mut reasons = vec![format!("anchor:{}", anchor.anchor)];
+
+        if anchor.anchor.eq_ignore_ascii_case(query) {
+            score += 100;
+            reasons.push("exact-anchor".to_string());
+        }
+
+        reasons.push(format!("domain:{}", anchor.domain));
+        reasons.push(format!("role:{}", anchor.role));
+
+        anchor_scores
+            .entry(path)
+            .and_modify(|entry| {
+                entry.0 += score;
+                entry.1.extend(reasons.clone());
+            })
+            .or_insert((score, reasons));
+    }
+
     let rankings = rank_open_set_items(
         &definition_paths,
         &changed_paths,
         &changed_status,
         &ref_counts,
+        &anchor_scores,
         editor_def,
     );
 
@@ -181,6 +219,7 @@ fn rank_open_set_items(
     changed_paths: &BTreeSet<String>,
     changed_status: &BTreeMap<String, String>,
     ref_counts: &BTreeMap<String, usize>,
+    anchor_scores: &BTreeMap<String, (i32, Vec<String>)>,
     editor_def: bool,
 ) -> BTreeMap<String, (i32, Vec<String>)> {
     let mut scores = BTreeMap::<String, (i32, Vec<String>)>::new();
@@ -264,6 +303,20 @@ fn rank_open_set_items(
             .or_insert((100, vec!["definition".to_string()]));
     }
 
+    for (path, (anchor_score, anchor_reasons)) in anchor_scores {
+        if should_skip_open_set_path(path, editor_def) {
+            continue;
+        }
+
+        scores
+            .entry(path.clone())
+            .and_modify(|entry| {
+                entry.0 += *anchor_score;
+                entry.1.extend(anchor_reasons.clone());
+            })
+            .or_insert((*anchor_score, anchor_reasons.clone()));
+    }
+
     scores
 }
 
@@ -331,7 +384,14 @@ mod tests {
             "M".to_string(),
         );
 
-        let ranked = rank_open_set_items(&defs, &changed, &changed_status, &refs, true);
+        let ranked = rank_open_set_items(
+            &defs,
+            &changed,
+            &changed_status,
+            &refs,
+            &BTreeMap::new(),
+            true,
+        );
         let first = ranked
             .get("crates/apps/amigo-editor/src/app/store/main.ts")
             .map(|(score, _)| *score)
@@ -359,6 +419,7 @@ mod tests {
             &BTreeSet::new(),
             &BTreeMap::new(),
             &refs,
+            &BTreeMap::new(),
             true,
         );
         assert!(

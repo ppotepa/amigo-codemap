@@ -65,10 +65,74 @@ pub struct TextOccurrenceEntry {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CodemapTagEntry {
     pub name: String,
+    pub anchor: String,
     pub file_id: String,
     pub line: usize,
     pub target: String,
+    pub domain: Option<String>,
+    pub role: Option<String>,
+    pub priority: Option<String>,
+    pub layer: Option<String>,
+    pub status: Option<String>,
+    pub risk: Option<String>,
+    pub owner: Option<String>,
+    pub tags: Vec<String>,
     pub values: BTreeMap<String, String>,
+    pub raw: String,
+    pub generated: bool,
+    pub confidence: u8,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AnchorIndex {
+    pub version: u16,
+    pub repo: String,
+    pub generated_at: String,
+    pub taxonomy_path: String,
+    pub counts: AnchorIndexCounts,
+    pub anchors: Vec<AnchorIndexEntry>,
+    pub diagnostics: Vec<AnchorDiagnostic>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AnchorIndexCounts {
+    pub anchors: usize,
+    pub manual: usize,
+    pub generated: usize,
+    pub p0: usize,
+    pub p1: usize,
+    pub p2: usize,
+    pub p3: usize,
+    pub px: usize,
+    pub errors: usize,
+    pub warnings: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AnchorIndexEntry {
+    pub anchor: String,
+    pub domain: String,
+    pub role: String,
+    pub priority: String,
+    pub layer: Option<String>,
+    pub status: Option<String>,
+    pub risk: Option<String>,
+    pub tags: Vec<String>,
+    pub file: String,
+    pub line: usize,
+    pub comment: String,
+    pub generated: bool,
+    pub score: i32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AnchorDiagnostic {
+    pub severity: String,
+    pub kind: String,
+    pub message: String,
+    pub file: Option<String>,
+    pub line: Option<usize>,
+    pub anchor: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

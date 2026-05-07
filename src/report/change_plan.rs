@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 
 use crate::model::CodeMap;
+use crate::report::anchors::{anchor_entry_matches, build_anchor_index};
 
 pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
     if query.trim().is_empty() {
@@ -12,17 +13,45 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     print_scope(map, query, limit);
     println!("2. symbols:");
     print_symbols(map, query, limit);
-    println!("3. text/config:");
+    println!("3. anchor scope:");
+    print_anchor_scope(map, query, limit);
+    println!("4. text/config:");
     print_text(map, query, limit);
-    println!("4. suggested commands:");
+    println!("5. suggested commands:");
     println!("  amigo-codemap trace {query} --limit {limit}");
+    println!("  amigo-codemap anchors {query} --limit {limit}");
     println!("  amigo-codemap open-set {query} --why --limit {limit}");
     println!("  amigo-codemap impact {query} --limit {limit}");
     println!("  amigo-codemap verify-plan --changed");
-    println!("5. verify:");
+    println!("6. verify:");
     println!("  cargo build -p amigo-codemap");
     println!("  cargo test -p amigo-codemap");
     Ok(())
+}
+
+fn print_anchor_scope(map: &CodeMap, query: &str, limit: usize) {
+    let index = build_anchor_index(map, None);
+    let mut emitted = 0usize;
+    for anchor in &index.anchors {
+        if anchor_entry_matches(anchor, query) {
+            println!(
+                "  {} {} domain={} role={} file={}:{}",
+                anchor.priority,
+                anchor.anchor,
+                anchor.domain,
+                anchor.role,
+                anchor.file,
+                anchor.line
+            );
+            emitted += 1;
+            if emitted >= limit {
+                break;
+            }
+        }
+    }
+    if emitted == 0 {
+        println!("  none");
+    }
 }
 
 fn print_scope(map: &CodeMap, query: &str, limit: usize) {

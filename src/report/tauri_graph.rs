@@ -1,4 +1,4 @@
-// @codemap anchor:codemap-report-tauri-graph domain:codemap role:tauri-graph
+// @codemap anchor:codemap-report-tauri-graph domain:codemap role:tauri-graph priority:P1 layer:tool tags:tauri,report
 use crate::model::CodeMap;
 
 pub fn print_tauri_graph(map: &CodeMap, limit: usize) {

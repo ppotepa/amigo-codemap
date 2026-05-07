@@ -6,6 +6,7 @@ mod output;
 mod query;
 mod report;
 mod scan;
+mod taxonomy;
 #[cfg(test)]
 mod test_support;
 mod watch;
@@ -27,6 +28,7 @@ fn main() -> Result<()> {
             cli.options.ai = false;
         }
         Command::VerifyPlan
+        | Command::Taxonomy
         | Command::Stale
         | Command::Fallout
         | Command::MovePlan
@@ -54,7 +56,12 @@ fn main() -> Result<()> {
             cli.options.level = 0;
             cli.options.ai = false;
         }
-        Command::Scope | Command::Refs | Command::Impact | Command::ServiceShape
+        Command::Scope
+        | Command::Refs
+        | Command::Anchors
+        | Command::AnchorCheck
+        | Command::Impact
+        | Command::ServiceShape
             if cli.options.level < 2 =>
         {
             cli.options.level = 2;
@@ -290,6 +297,23 @@ fn main() -> Result<()> {
                 .as_deref()
                 .ok_or_else(|| anyhow::anyhow!("command-map requires a query"))?;
             report::command_map::print_command_map(query)?;
+        }
+        Command::Anchors => {
+            let map = scan::scan_project(&cli.options)?;
+            report::anchors::print_anchors(
+                &cli.options.root,
+                &map,
+                cli.options.query.as_deref(),
+                cli.options.write,
+                cli.options.limit,
+            )?;
+        }
+        Command::AnchorCheck => {
+            let map = scan::scan_project(&cli.options)?;
+            report::anchor_check::print_anchor_check(&cli.options.root, &map)?;
+        }
+        Command::Taxonomy => {
+            report::taxonomy_report::print_taxonomy(&cli.options.root)?;
         }
         Command::Verify => {
             report::run_verify(

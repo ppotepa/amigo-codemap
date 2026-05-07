@@ -37,6 +37,44 @@ For most tasks, start with:
 & $cm open-set <thing> --why --limit 10
 ```
 
+## Codemap Taxonomy And Anchors
+
+Codemap anchors are stable navigation points in the repository.
+
+Human-readable taxonomy:
+
+- `codemap.index.md`
+
+Machine-readable taxonomy:
+
+- `.amigo/codemap.taxonomy.yml`
+
+Generated anchor data:
+
+- `.amigo/codemap.anchors.generated.json`
+- `.amigo/codemap.coverage.generated.md`
+
+Common commands:
+
+```powershell
+& $cm taxonomy
+& $cm anchors priority:P0 --limit 20
+& $cm anchors domain:ui-document --limit 20
+& $cm anchors --write
+& $cm anchor-check
+```
+
+Anchors are integrated with navigation reports:
+
+```powershell
+& $cm trace editor-dock-registry
+& $cm open-set ui-document --why --limit 10
+& $cm change-plan scene-editor --limit 20
+& $cm neighbors crates/tools/amigo-codemap/src/report/tauri_graph.rs
+```
+
+P0/P1 anchors should be manual and meaningful. P2 anchors may be generated file-level coverage anchors.
+
 ## What amigo-codemap Is
 
 `amigo-codemap` builds and reads an operational snapshot of the repository. The snapshot contains files, file tags, symbols, symbol metadata, text occurrences, relationships, git state, and command/workflow hints.

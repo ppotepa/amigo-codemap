@@ -13,29 +13,69 @@ pub fn scan_codemap_tags(root: &Path, files: &[FileEntry]) -> Result<Vec<Codemap
 
     for file in files {
         let text = fs::read_to_string(root.join(&file.path))?;
+        let mut in_markdown_fence = false;
+        let is_markdown = file
+            .path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| matches!(extension, "md" | "mdx"));
         for (line_index, line) in text.lines().enumerate() {
+            if is_markdown && line.trim_start().starts_with("```") {
+                in_markdown_fence = !in_markdown_fence;
+                continue;
+            }
+
+            if in_markdown_fence {
+                continue;
+            }
+
             let Some(caps) = marker_re.captures(line) else {
                 continue;
             };
             let body = caps.name("body").map(|m| m.as_str()).unwrap_or_default();
             let values = parse_values(body);
-            let name = values
+            let Some(anchor) = values
                 .get("anchor")
                 .or_else(|| values.get("name"))
                 .or_else(|| values.get("domain"))
                 .cloned()
-                .unwrap_or_else(|| "codemap".to_string());
+            else {
+                continue;
+            };
+            let codemap_tags = values
+                .get("tags")
+                .map(|value| {
+                    value
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|tag| !tag.is_empty())
+                        .map(ToOwned::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
             let target = values
                 .get("target")
                 .cloned()
                 .unwrap_or_else(|| "line".to_string());
 
             tags.push(CodemapTagEntry {
-                name,
+                name: anchor.clone(),
+                anchor,
                 file_id: file.id.clone(),
                 line: line_index + 1,
                 target,
+                domain: values.get("domain").cloned(),
+                role: values.get("role").cloned(),
+                priority: values.get("priority").cloned(),
+                layer: values.get("layer").cloned(),
+                status: values.get("status").cloned(),
+                risk: values.get("risk").cloned(),
+                owner: values.get("owner").cloned(),
+                tags: codemap_tags,
                 values,
+                raw: line.trim().to_string(),
+                generated: false,
+                confidence: 100,
             });
         }
     }
@@ -64,12 +104,19 @@ mod tests {
 
     #[test]
     fn parses_codemap_values() {
-        let values = parse_values("anchor:workspace-dock domain:workspace role:registry");
+        let values = parse_values(
+            "anchor:workspace-dock domain:workspace role:registry priority:P0 tags:dock,registry",
+        );
         assert_eq!(
             values.get("anchor").map(String::as_str),
             Some("workspace-dock")
         );
         assert_eq!(values.get("domain").map(String::as_str), Some("workspace"));
         assert_eq!(values.get("role").map(String::as_str), Some("registry"));
+        assert_eq!(values.get("priority").map(String::as_str), Some("P0"));
+        assert_eq!(
+            values.get("tags").map(String::as_str),
+            Some("dock,registry")
+        );
     }
 }

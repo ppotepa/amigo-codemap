@@ -61,6 +61,9 @@ pub enum Command {
     Refs,
     Docs,
     CommandMap,
+    Anchors,
+    AnchorCheck,
+    Taxonomy,
     Verify,
     VerifyPlan,
     Stale,
@@ -159,6 +162,7 @@ impl Cli {
                         | Command::Refs
                         | Command::Docs
                         | Command::CommandMap
+                        | Command::Anchors
                         | Command::Impact
                         | Command::MovePlan
                         | Command::Dup
@@ -221,6 +225,9 @@ impl Cli {
                 "refs" => command = Some(Command::Refs),
                 "docs" | "readme-coverage" => command = Some(Command::Docs),
                 "command-map" => command = Some(Command::CommandMap),
+                "anchors" => command = Some(Command::Anchors),
+                "anchor-check" => command = Some(Command::AnchorCheck),
+                "taxonomy" => command = Some(Command::Taxonomy),
                 "verify" => command = Some(Command::Verify),
                 "verify-plan" => command = Some(Command::VerifyPlan),
                 "stale" => command = Some(Command::Stale),
@@ -356,6 +363,7 @@ impl Cli {
                         | Command::Refs
                         | Command::Docs
                         | Command::CommandMap
+                        | Command::Anchors
                         | Command::Impact
                         | Command::MovePlan
                         | Command::Dup
@@ -429,7 +437,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply to modify files\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  watch\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply or anchors to write files\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -466,6 +474,9 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "refs" => Some(Command::Refs),
         "docs" | "readme-coverage" => Some(Command::Docs),
         "command-map" => Some(Command::CommandMap),
+        "anchors" => Some(Command::Anchors),
+        "anchor-check" => Some(Command::AnchorCheck),
+        "taxonomy" => Some(Command::Taxonomy),
         "verify" => Some(Command::Verify),
         "verify-plan" => Some(Command::VerifyPlan),
         "stale" => Some(Command::Stale),
@@ -625,6 +636,20 @@ mod tests {
 
         assert_eq!(cli.command, Command::CommandMap);
         assert_eq!(cli.options.query.as_deref(), Some("append-plan"));
+    }
+
+    #[test]
+    fn parses_anchors_query_and_write() {
+        let cli = Cli::parse([
+            "anchors".to_string(),
+            "domain:codemap".to_string(),
+            "--write".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Anchors);
+        assert_eq!(cli.options.query.as_deref(), Some("domain:codemap"));
+        assert!(cli.options.write);
     }
 
     #[test]
