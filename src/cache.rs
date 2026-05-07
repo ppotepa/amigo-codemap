@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use crate::{cli::Options, output, scan};
+use crate::cli::Options;
+use crate::snapshot_store;
 
 pub fn refresh_changed_only(options: &Options) -> Result<bool> {
-    let map = scan::scan_project(options)?;
-    output::write_codemap(options, &map)
+    snapshot_store::refresh_snapshot(options)
 }

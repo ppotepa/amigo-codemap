@@ -5,9 +5,9 @@ use anyhow::{Result, anyhow};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::cli::Options;
-use crate::{output, scan};
+use crate::{output, scan, snapshot_store};
 
-const DEBOUNCE: Duration = Duration::from_millis(300);
+const DEBOUNCE: Duration = Duration::from_millis(700);
 const MIN_WRITE_INTERVAL: Duration = Duration::from_secs(1);
 
 pub fn watch_project(options: Options) -> Result<()> {
@@ -20,12 +20,16 @@ pub fn watch_project(options: Options) -> Result<()> {
     )?;
     watcher.watch(&options.root, RecursiveMode::Recursive)?;
 
+    let initial_started = Instant::now();
     let initial = scan::scan_project(&options)?;
     output::write_codemap(&options, &initial)?;
+    snapshot_store::write_snapshot(&options, &initial)?;
     println!(
-        "watching {} -> {}",
+        "watching {} -> {} and {} ({:?})",
         options.root.display(),
-        options.out.display()
+        options.out.display(),
+        snapshot_store::snapshot_path(&options.root).display(),
+        initial_started.elapsed()
     );
 
     let mut pending = false;
@@ -54,10 +58,23 @@ pub fn watch_project(options: Options) -> Result<()> {
 
         if pending && last_event.elapsed() >= DEBOUNCE && last_write.elapsed() >= MIN_WRITE_INTERVAL
         {
+            let started = Instant::now();
             let map = scan::scan_project(&options)?;
             let wrote = output::write_codemap(&options, &map)?;
+            snapshot_store::write_snapshot(&options, &map)?;
             if wrote {
-                println!("updated {}", options.out.display());
+                println!(
+                    "updated {} and {} in {:?}",
+                    options.out.display(),
+                    snapshot_store::snapshot_path(&options.root).display(),
+                    started.elapsed()
+                );
+            } else {
+                println!(
+                    "refreshed snapshot {} in {:?}",
+                    snapshot_store::snapshot_path(&options.root).display(),
+                    started.elapsed()
+                );
             }
             pending = false;
             last_write = Instant::now();
@@ -70,4 +87,13 @@ fn should_ignore_event(options: &Options, path: &std::path::Path) -> bool {
         || path.starts_with(options.root.join(".amigo"))
         || path.starts_with(options.root.join("target"))
         || path.starts_with(options.root.join("node_modules"))
+        || path.starts_with(options.root.join("dist"))
+        || path.starts_with(options.root.join("build"))
+        || path.starts_with(options.root.join("coverage"))
+        || path.extension().is_some_and(|ext| {
+            matches!(
+                ext.to_string_lossy().as_ref(),
+                "tmp" | "swp" | "lock" | "log"
+            )
+        })
 }

@@ -6,6 +6,7 @@ mod output;
 mod query;
 mod report;
 mod scan;
+mod snapshot_store;
 mod taxonomy;
 #[cfg(test)]
 mod test_support;
@@ -13,6 +14,12 @@ mod watch;
 
 use anyhow::Result;
 use cli::{Cli, Command};
+
+fn load_report_map(options: &cli::Options) -> Result<model::CodeMap> {
+    let loaded = snapshot_store::load_or_scan(options)?;
+    let _source = loaded.source;
+    Ok(loaded.map)
+}
 
 fn main() -> Result<()> {
     let mut cli = Cli::parse(std::env::args().skip(1))?;
@@ -132,12 +139,15 @@ fn main() -> Result<()> {
             }
         }
         Command::Watch => watch::watch_project(cli.options)?,
+        Command::Status => {
+            snapshot_store::print_status(&cli.options)?;
+        }
         Command::Changed => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::print_changed(&map, cli.options.group.as_deref(), cli.options.limit);
         }
         Command::Files => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::print_files(
                 &map,
                 cli.options.query.as_deref(),
@@ -147,7 +157,7 @@ fn main() -> Result<()> {
             );
         }
         Command::Symbols => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::symbols::print_symbols(
                 &map,
                 cli.options.query.as_deref(),
@@ -158,7 +168,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Where => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -167,7 +177,7 @@ fn main() -> Result<()> {
             report::where_symbol::print_where(&cli.options.root, &map, query, cli.options.limit)?;
         }
         Command::Signature => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -176,7 +186,7 @@ fn main() -> Result<()> {
             report::signature::print_signature(&map, query, cli.options.limit)?;
         }
         Command::Trace => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -185,7 +195,7 @@ fn main() -> Result<()> {
             report::trace::print_trace(&map, query, cli.options.limit)?;
         }
         Command::ChangePlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -194,7 +204,7 @@ fn main() -> Result<()> {
             report::change_plan::print_change_plan(&map, query, cli.options.limit)?;
         }
         Command::ExplainFile => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -203,7 +213,7 @@ fn main() -> Result<()> {
             report::explain_file::print_explain_file(&map, query)?;
         }
         Command::Neighbors => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -212,19 +222,19 @@ fn main() -> Result<()> {
             report::neighbors::print_neighbors(&map, query, cli.options.limit)?;
         }
         Command::ApiSurface => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::api_surface::print_api_surface(&map, cli.options.limit);
         }
         Command::ComponentGraph => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::component_graph::print_component_graph(&map, cli.options.limit);
         }
         Command::TauriGraph => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::tauri_graph::print_tauri_graph(&map, cli.options.limit);
         }
         Command::CallsiteCandidates => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -244,11 +254,11 @@ fn main() -> Result<()> {
             }
         }
         Command::Brief => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::print_brief(&map);
         }
         Command::Find => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -263,7 +273,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Scope => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -272,7 +282,7 @@ fn main() -> Result<()> {
             report::print_scope(&map, query, cli.options.limit);
         }
         Command::Refs => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -287,7 +297,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Docs => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::print_docs(&cli.options.root, &map);
         }
         Command::CommandMap => {
@@ -299,7 +309,11 @@ fn main() -> Result<()> {
             report::command_map::print_command_map(query)?;
         }
         Command::Anchors => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = if cli.options.write {
+                scan::scan_project(&cli.options)?
+            } else {
+                load_report_map(&cli.options)?
+            };
             report::anchors::print_anchors(
                 &cli.options.root,
                 &map,
@@ -309,7 +323,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::AnchorCheck => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::anchor_check::print_anchor_check(&cli.options.root, &map)?;
         }
         Command::Taxonomy => {
@@ -323,11 +337,11 @@ fn main() -> Result<()> {
             )?;
         }
         Command::VerifyPlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::verify_plan::print_verify_plan(&map, cli.options.changed_only);
         }
         Command::Stale => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::stale::print_stale(
                 &cli.options.root,
                 &map,
@@ -337,7 +351,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Impact => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -369,7 +383,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Dup => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::dup::print_dup(
                 &cli.options.root,
                 &map,
@@ -382,7 +396,7 @@ fn main() -> Result<()> {
             report::tauri::print_tauri_commands(&cli.options.root, cli.options.limit)?;
         }
         Command::ServiceShape => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -406,11 +420,11 @@ fn main() -> Result<()> {
             report::summary::print_operations_summary(&cli.options.root, cli.options.limit)?;
         }
         Command::CommitSummary => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::summary::print_commit_summary(&map, cli.options.limit);
         }
         Command::Slice => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -425,7 +439,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::AppendPlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -440,7 +454,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::CopyPlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -456,11 +470,11 @@ fn main() -> Result<()> {
             )?;
         }
         Command::DiffScope => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::diff_scope::print_diff_scope(&map, cli.options.limit);
         }
         Command::DeletePlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -474,7 +488,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::FileMovePlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -494,7 +508,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::RenamePlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let old = cli
                 .options
                 .query
@@ -517,7 +531,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::ImportFixPlan => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::import_fix_plan::print_import_fix_plan(
                 &cli.options.root,
                 &map,
@@ -526,7 +540,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::OpenSet => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -542,7 +556,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::Workset => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let name = cli
                 .options
                 .query
@@ -559,7 +573,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::BarrelCheck => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -573,7 +587,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::OrphanFiles => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             let query = cli
                 .options
                 .query
@@ -587,7 +601,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::ShimCheck => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::shim_check::print_shim_check(
                 &cli.options.root,
                 &map,
@@ -596,7 +610,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::LargeFiles => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::large_files::print_large_files(
                 &map,
                 cli.options.top.max(1),
@@ -616,7 +630,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::CaseCheck => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::case_check::print_case_check(
                 &cli.options.root,
                 &map,
@@ -625,7 +639,7 @@ fn main() -> Result<()> {
             )?;
         }
         Command::TextCheck => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::text_check::print_text_check(
                 &cli.options.root,
                 &map,
@@ -634,7 +648,7 @@ fn main() -> Result<()> {
             );
         }
         Command::PatchPreview => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::patch_preview::print_patch_preview(
                 &cli.options.root,
                 &map,
@@ -672,7 +686,11 @@ fn main() -> Result<()> {
             )?;
         }
         Command::OpsApply => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = if cli.options.write {
+                scan::scan_project(&cli.options)?
+            } else {
+                load_report_map(&cli.options)?
+            };
             report::file_ops::ops_plan::print_ops_apply(
                 &cli.options.root,
                 &map,
@@ -682,15 +700,15 @@ fn main() -> Result<()> {
             )?;
         }
         Command::TodoIndex => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::todo_index::print_todo_index(&map, cli.options.limit);
         }
         Command::RiskIndex => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::risk_index::print_risk_index(&map, cli.options.limit);
         }
         Command::CommitFiles => {
-            let map = scan::scan_project(&cli.options)?;
+            let map = load_report_map(&cli.options)?;
             report::file_ops::commit_files::print_commit_files(
                 &cli.options.root,
                 &map,

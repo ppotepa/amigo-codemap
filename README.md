@@ -37,6 +37,48 @@ For most tasks, start with:
 & $cm open-set <thing> --why --limit 10
 ```
 
+## Fast Snapshot Workflow
+
+Most report commands read the fast snapshot cache from:
+
+```text
+.amigo/codemap.snapshot.json
+```
+
+The first report command may scan the repository and create the cache. Later commands should be much faster.
+
+Refresh manually:
+
+```powershell
+& $cm refresh
+```
+
+Check status:
+
+```powershell
+& $cm status
+```
+
+Keep the snapshot updated in a separate terminal:
+
+```powershell
+& $cm watch --write
+```
+
+Then use regular commands in another terminal:
+
+```powershell
+& $cm trace ui-document
+& $cm open-set ui-document --why --limit 10
+& $cm impact ui-document
+```
+
+Force a full scan when debugging scanner behavior or stale cache suspicion:
+
+```powershell
+& $cm trace ui-document --no-cache
+```
+
 ## Codemap Taxonomy And Anchors
 
 Codemap anchors are stable navigation points in the repository.

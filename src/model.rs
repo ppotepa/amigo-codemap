@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 pub const CODEMAP_SCHEMA_VERSION: u16 = 1;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeMap {
     pub root_name: String,
     pub stats: BTreeMap<String, usize>,
@@ -18,7 +20,7 @@ pub struct CodeMap {
     pub git: GitInfo,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileEntry {
     pub id: String,
     pub path: PathBuf,
@@ -29,7 +31,7 @@ pub struct FileEntry {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolEntry {
     pub name: String,
     pub kind: String,
@@ -47,7 +49,7 @@ pub struct SymbolEntry {
     pub confidence: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextOccurrenceEntry {
     pub id: String,
     pub value: String,
@@ -62,7 +64,7 @@ pub struct TextOccurrenceEntry {
     pub confidence: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodemapTagEntry {
     pub name: String,
     pub anchor: String,
@@ -83,7 +85,7 @@ pub struct CodemapTagEntry {
     pub confidence: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorIndex {
     pub version: u16,
     pub repo: String,
@@ -94,7 +96,7 @@ pub struct AnchorIndex {
     pub diagnostics: Vec<AnchorDiagnostic>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorIndexCounts {
     pub anchors: usize,
     pub manual: usize,
@@ -108,7 +110,7 @@ pub struct AnchorIndexCounts {
     pub warnings: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorIndexEntry {
     pub anchor: String,
     pub domain: String,
@@ -125,7 +127,7 @@ pub struct AnchorIndexEntry {
     pub score: i32,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorDiagnostic {
     pub severity: String,
     pub kind: String,
@@ -135,7 +137,7 @@ pub struct AnchorDiagnostic {
     pub anchor: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RelationEntry {
     pub from: String,
     pub to: String,
@@ -143,7 +145,7 @@ pub struct RelationEntry {
     pub confidence: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageEntry {
     pub id: String,
     pub kind: String,
@@ -154,20 +156,20 @@ pub struct PackageEntry {
     pub scripts: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DependencyEntry {
     pub from: String,
     pub to: String,
     pub kind: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AreaEntry {
     pub name: String,
     pub files: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitInfo {
     pub branch: String,
     pub rev: String,
@@ -175,7 +177,7 @@ pub struct GitInfo {
     pub changed: Vec<GitChange>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitChange {
     pub status: String,
     pub path: PathBuf,

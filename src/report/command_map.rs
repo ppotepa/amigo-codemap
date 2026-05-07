@@ -34,6 +34,35 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["append-plan", "operations-summary", "docs"],
     },
     CommandDescriptor {
+        name: "refresh",
+        category: "snapshot",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/cache.rs",
+            "crates/tools/amigo-codemap/src/snapshot_store.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/snapshot_store.rs",
+        ],
+        related: &["scan", "watch", "status"],
+    },
+    CommandDescriptor {
+        name: "status",
+        category: "snapshot",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/snapshot_store.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/snapshot_store.rs",
+        ],
+        related: &["refresh", "watch", "scan"],
+    },
+    CommandDescriptor {
         name: "taxonomy",
         category: "meta",
         cli_paths: CLI_PATH,
@@ -564,6 +593,12 @@ mod tests {
                 .any(|command| command.name == "anchor-check")
         );
         assert!(COMMANDS.iter().any(|command| command.name == "taxonomy"));
+    }
+
+    #[test]
+    fn catalog_contains_snapshot_commands() {
+        assert!(COMMANDS.iter().any(|command| command.name == "refresh"));
+        assert!(COMMANDS.iter().any(|command| command.name == "status"));
     }
 
     #[test]
