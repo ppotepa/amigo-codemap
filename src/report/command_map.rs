@@ -63,6 +63,32 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["refresh", "watch", "scan"],
     },
     CommandDescriptor {
+        name: "changes",
+        category: "git",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/live_changes.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/live_changes.rs",
+        ],
+        related: &["changed", "commit-plan", "commit-summary", "status"],
+    },
+    CommandDescriptor {
+        name: "commit-plan",
+        category: "git",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/live_changes.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/live_changes.rs",
+        ],
+        related: &["changes", "commit-files", "commit-summary", "verify-plan"],
+    },
+    CommandDescriptor {
         name: "taxonomy",
         category: "meta",
         cli_paths: CLI_PATH,
@@ -599,6 +625,12 @@ mod tests {
     fn catalog_contains_snapshot_commands() {
         assert!(COMMANDS.iter().any(|command| command.name == "refresh"));
         assert!(COMMANDS.iter().any(|command| command.name == "status"));
+    }
+
+    #[test]
+    fn catalog_contains_live_git_commands() {
+        assert!(COMMANDS.iter().any(|command| command.name == "changes"));
+        assert!(COMMANDS.iter().any(|command| command.name == "commit-plan"));
     }
 
     #[test]

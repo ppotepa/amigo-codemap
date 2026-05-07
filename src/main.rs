@@ -27,6 +27,7 @@ fn main() -> Result<()> {
     match cli.command {
         Command::Brief
         | Command::Changed
+        | Command::Changes
         | Command::Find
         | Command::Docs
         | Command::CommandMap
@@ -43,6 +44,7 @@ fn main() -> Result<()> {
         | Command::TauriCommands
         | Command::RegistryCheck
         | Command::OperationsSummary
+        | Command::CommitPlan
         | Command::CommitSummary
         | Command::DiffScope
         | Command::DeletePlan
@@ -141,6 +143,16 @@ fn main() -> Result<()> {
         Command::Watch => watch::watch_project(cli.options)?,
         Command::Status => {
             snapshot_store::print_status(&cli.options)?;
+        }
+        Command::Changes => {
+            report::live_changes::print_changes(
+                &cli.options.root,
+                cli.options.group.as_deref(),
+                cli.options.limit,
+                cli.options.compact,
+                cli.options.hide_generated,
+                cli.options.warnings,
+            )?;
         }
         Command::Changed => {
             let map = load_report_map(&cli.options)?;
@@ -418,6 +430,13 @@ fn main() -> Result<()> {
         }
         Command::OperationsSummary => {
             report::summary::print_operations_summary(&cli.options.root, cli.options.limit)?;
+        }
+        Command::CommitPlan => {
+            report::live_changes::print_commit_plan(
+                &cli.options.root,
+                cli.options.limit,
+                cli.options.compact,
+            )?;
         }
         Command::CommitSummary => {
             let map = load_report_map(&cli.options)?;

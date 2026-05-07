@@ -22,7 +22,7 @@ Run the default navigation loop:
 
 ```powershell
 & $cm brief
-& $cm changed --group package --limit 20
+& $cm changes --compact --hide-generated --limit 20
 & $cm trace patch-apply --limit 20
 & $cm open-set patch-apply --why --limit 10
 & $cm impact patch-apply --limit 30
@@ -78,6 +78,22 @@ Force a full scan when debugging scanner behavior or stale cache suspicion:
 ```powershell
 & $cm trace ui-document --no-cache
 ```
+
+## Live Git Change Summary
+
+`changed` is snapshot-aware and can be stale if the fast cache is stale. For live working tree state, use:
+
+```powershell
+& $cm changes --compact
+& $cm changes --compact --hide-generated
+& $cm changes --group domain
+& $cm changes --warnings
+& $cm commit-plan --compact
+```
+
+Use `changes` instead of manual `git status --short` and `git diff --stat` in normal agent workflow. It reads live git state, groups generated files and submodules, prints a compact shortstat, and suggests next commands.
+
+Use `commit-plan` before committing when changes need to be split into logical commits.
 
 ## Codemap Taxonomy And Anchors
 
@@ -460,9 +476,26 @@ level 2: symbols + text occurrences
 level 3: deeper relation/report context
 ```
 
+### `changes`
+
+Show live git working tree status with compact grouping and shortstat. This is the preferred command for current dirty state.
+
+```powershell
+& $cm changes --compact --hide-generated
+& $cm changes --group domain
+& $cm changes --warnings
+```
+
+Typical next commands:
+
+```powershell
+& $cm commit-plan --compact
+& $cm verify-plan --changed
+```
+
 ### `changed`
 
-Show changed files using git state.
+Show changed files from the current codemap snapshot. This can be stale if `watch --write` is not running or `refresh` has not been run recently.
 
 ```powershell
 & $cm changed --group package --limit 20

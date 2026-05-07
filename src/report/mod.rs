@@ -20,6 +20,7 @@ pub mod explain_file;
 pub mod fallout;
 pub mod file_ops;
 pub mod impact;
+pub mod live_changes;
 pub mod move_plan;
 pub mod neighbors;
 pub mod registry;

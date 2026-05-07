@@ -32,6 +32,9 @@ pub struct Options {
     pub why: bool,
     pub metadata: bool,
     pub no_cache: bool,
+    pub compact: bool,
+    pub hide_generated: bool,
+    pub warnings: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +43,7 @@ pub enum Command {
     Refresh,
     Watch,
     Status,
+    Changes,
     Files,
     Changed,
     Symbols,
@@ -77,6 +81,7 @@ pub enum Command {
     ServiceShape,
     RegistryCheck,
     OperationsSummary,
+    CommitPlan,
     CommitSummary,
     AppendPlan,
     CopyPlan,
@@ -144,6 +149,9 @@ impl Cli {
         let mut why = false;
         let mut metadata = false;
         let mut no_cache = false;
+        let mut compact = false;
+        let mut hide_generated = false;
+        let mut warnings = false;
 
         let args = args.into_iter().collect::<Vec<_>>();
         let mut index = 0;
@@ -207,6 +215,7 @@ impl Cli {
                 "refresh" => command = Some(Command::Refresh),
                 "watch" => command = Some(Command::Watch),
                 "status" => command = Some(Command::Status),
+                "changes" => command = Some(Command::Changes),
                 "files" => command = Some(Command::Files),
                 "changed" => command = Some(Command::Changed),
                 "symbols" => command = Some(Command::Symbols),
@@ -243,6 +252,7 @@ impl Cli {
                 "service-shape" => command = Some(Command::ServiceShape),
                 "registry-check" => command = Some(Command::RegistryCheck),
                 "operations-summary" => command = Some(Command::OperationsSummary),
+                "commit-plan" => command = Some(Command::CommitPlan),
                 "commit-summary" => command = Some(Command::CommitSummary),
                 "append-plan" => command = Some(Command::AppendPlan),
                 "copy-plan" => command = Some(Command::CopyPlan),
@@ -352,6 +362,9 @@ impl Cli {
                 "--why" => why = true,
                 "--metadata" => metadata = true,
                 "--no-cache" => no_cache = true,
+                "--compact" => compact = true,
+                "--hide-generated" => hide_generated = true,
+                "--warnings" => warnings = true,
                 unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
                 value => match command {
                     Some(
@@ -436,6 +449,9 @@ impl Cli {
                 why,
                 metadata,
                 no_cache,
+                compact,
+                hide_generated,
+                warnings,
             },
         })
     }
@@ -443,7 +459,7 @@ impl Cli {
 
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  refresh           refresh compact output and fast snapshot cache\n  watch\n  status            show fast snapshot cache status\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply or anchors to write files\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --no-cache       force full scan instead of reading .amigo/codemap.snapshot.json\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap\n\ncommands:\n  scan\n  refresh           refresh compact output and fast snapshot cache\n  watch\n  status            show fast snapshot cache status\n  changes           live git status + shortstat summary\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  commit-files [--changed]\n  commit-plan        live git grouped commit plan\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag|domain\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch input file or copy-plan donor\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup strategy\n  --to <path>      move target or rename destination\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --top <n>        top-N listing for ranking commands\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow patch-apply or anchors to write files\n  --why            include ranking reasons where supported\n  --metadata       include expanded metadata where supported\n  --compact        compact output for changes/commit-plan\n  --hide-generated hide generated/index files in changes output\n  --warnings       show only live git warnings where supported\n  --no-cache       force full scan instead of reading .amigo/codemap.snapshot.json\n  --limit <n>      output row cap, default 80"
     );
 }
 
@@ -459,6 +475,7 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "refresh" => Some(Command::Refresh),
         "watch" => Some(Command::Watch),
         "status" => Some(Command::Status),
+        "changes" => Some(Command::Changes),
         "files" => Some(Command::Files),
         "changed" => Some(Command::Changed),
         "symbols" => Some(Command::Symbols),
@@ -495,6 +512,7 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "service-shape" => Some(Command::ServiceShape),
         "registry-check" => Some(Command::RegistryCheck),
         "operations-summary" => Some(Command::OperationsSummary),
+        "commit-plan" => Some(Command::CommitPlan),
         "commit-summary" => Some(Command::CommitSummary),
         "append-plan" => Some(Command::AppendPlan),
         "copy-plan" => Some(Command::CopyPlan),
@@ -671,6 +689,31 @@ mod tests {
         let cli = Cli::parse(["refresh".to_string()]).expect("cli should parse");
 
         assert_eq!(cli.command, Command::Refresh);
+    }
+
+    #[test]
+    fn parses_changes_flags() {
+        let cli = Cli::parse([
+            "changes".to_string(),
+            "--compact".to_string(),
+            "--hide-generated".to_string(),
+            "--warnings".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Changes);
+        assert!(cli.options.compact);
+        assert!(cli.options.hide_generated);
+        assert!(cli.options.warnings);
+    }
+
+    #[test]
+    fn parses_commit_plan() {
+        let cli = Cli::parse(["commit-plan".to_string(), "--compact".to_string()])
+            .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::CommitPlan);
+        assert!(cli.options.compact);
     }
 
     #[test]
