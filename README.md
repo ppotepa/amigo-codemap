@@ -75,6 +75,32 @@ Anchors are integrated with navigation reports:
 
 P0/P1 anchors should be manual and meaningful. P2 anchors may be generated file-level coverage anchors.
 
+### Maintaining Anchors During Feature Work
+
+`amigo-codemap` is a living repository index, not a one-time report.
+
+When a feature adds or moves important engine, editor, runtime, backend, or mod surfaces, update codemap in the same change:
+
+1. Add manual P0/P1 anchors for new entrypoints, dispatchers, registries, root models, DTO contracts, command handlers, editor roots, scene YAML files, and scene scripts.
+2. Update `.amigo/codemap.taxonomy.yml` when the feature introduces a new domain, role, layer, or scoring rule.
+3. Regenerate generated files:
+
+```powershell
+& $cm anchors --write
+& $cm anchor-check
+```
+
+4. Commit the feature code together with the updated taxonomy/index files:
+
+```text
+codemap.index.md
+.amigo/codemap.taxonomy.yml
+.amigo/codemap.anchors.generated.json
+.amigo/codemap.coverage.generated.md
+```
+
+Generated P2 anchors provide broad coverage. Manual P0/P1 anchors explain intent and should exist for places an agent should open early.
+
 ## What amigo-codemap Is
 
 `amigo-codemap` builds and reads an operational snapshot of the repository. The snapshot contains files, file tags, symbols, symbol metadata, text occurrences, relationships, git state, and command/workflow hints.
