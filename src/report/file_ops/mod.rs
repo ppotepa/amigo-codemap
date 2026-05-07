@@ -23,6 +23,7 @@ pub mod ops_skeleton;
 pub mod orphan_files;
 pub mod patch_apply;
 pub mod patch_preview;
+pub mod range_for_lines;
 pub mod range_for_symbol;
 pub mod rename_plan;
 pub mod shim_check;

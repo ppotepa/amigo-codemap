@@ -21,15 +21,16 @@ pub fn print_registry_check(
             "crates/apps/amigo-editor/src/features/files/fileWorkspaceRules.ts",
             "crates/apps/amigo-editor/src/features/files/fileWorkspaceTypes.ts",
         ],
-        "project-actions" => {
-            vec!["crates/apps/amigo-editor/src/features/project/projectNodeActions.ts"]
-        }
+        "project-actions" => vec![
+            "crates/apps/amigo-editor/src/editor-targets/editorTargetActivation.ts",
+            "crates/apps/amigo-editor/src/features/project/ProjectExplorerPanel.tsx",
+        ],
         _ => vec![
             "crates/apps/amigo-editor/src/properties/propertiesRegistry.tsx",
             "crates/apps/amigo-editor/src/editor-components/componentRegistry.tsx",
             "crates/apps/amigo-editor/src/editor-components/builtinComponents.tsx",
             "crates/apps/amigo-editor/src/features/files/fileWorkspaceRules.ts",
-            "crates/apps/amigo-editor/src/features/project/projectNodeActions.ts",
+            "crates/apps/amigo-editor/src/editor-targets/editorTargetActivation.ts",
         ],
     };
     let mut texts = Vec::new();

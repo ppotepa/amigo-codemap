@@ -68,6 +68,30 @@ pub enum OpsEntry {
         content: String,
         expected_hash: Option<String>,
     },
+    #[serde(rename = "insert_before_text")]
+    InsertBeforeText {
+        #[serde(default)]
+        id: Option<String>,
+        path: PathBuf,
+        find: String,
+        content: String,
+    },
+    #[serde(rename = "insert_after_text")]
+    InsertAfterText {
+        #[serde(default)]
+        id: Option<String>,
+        path: PathBuf,
+        find: String,
+        content: String,
+    },
+    #[serde(rename = "replace_text")]
+    ReplaceText {
+        #[serde(default)]
+        id: Option<String>,
+        path: PathBuf,
+        find: String,
+        replace: String,
+    },
     #[serde(rename = "insert_before_anchor")]
     InsertBeforeAnchor {
         #[serde(default)]
@@ -237,6 +261,7 @@ pub fn print_ops_check(
         for error in errors {
             println!("  {error}");
         }
+        bail!("ops-check failed");
     }
     Ok(())
 }
@@ -310,8 +335,10 @@ fn validate_op(root: &Path, map: Option<&CodeMap>, op: &OpsEntry, strict: bool) 
             path,
             expected_hash,
             ..
+        } => {
+            validate_replace_file(root, path, expected_hash.as_deref())?;
         }
-        | OpsEntry::DeleteFile {
+        OpsEntry::DeleteFile {
             path,
             expected_hash,
             ..
@@ -322,6 +349,11 @@ fn validate_op(root: &Path, map: Option<&CodeMap>, op: &OpsEntry, strict: bool) 
             ..
         } => {
             validate_existing_file(root, path, expected_hash.as_deref())?;
+        }
+        OpsEntry::InsertBeforeText { path, find, .. }
+        | OpsEntry::InsertAfterText { path, find, .. }
+        | OpsEntry::ReplaceText { path, find, .. } => {
+            validate_text_locator(root, path, find, strict)?;
         }
         OpsEntry::ReplaceRange {
             path,
@@ -464,7 +496,11 @@ fn apply_op(root: &Path, map: &CodeMap, op: &OpsEntry, write: bool) -> Result<()
             fs::write(full, content)?;
         }
         OpsEntry::ReplaceFile { path, content, .. } => {
-            fs::write(root.join(path), content)?;
+            let full = root.join(path);
+            if let Some(parent) = full.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(full, content)?;
         }
         OpsEntry::AppendToFile { path, content, .. } => {
             let mut text = fs::read_to_string(root.join(path))?;
@@ -474,6 +510,52 @@ fn apply_op(root: &Path, map: &CodeMap, op: &OpsEntry, write: bool) -> Result<()
             text.push_str(content.trim_end());
             text.push('\n');
             fs::write(root.join(path), text)?;
+        }
+        OpsEntry::InsertBeforeText {
+            path,
+            find,
+            content,
+            ..
+        } => {
+            let text = fs::read_to_string(root.join(path))?;
+            let actual_find = text_locator_in_text(&text, find)?;
+            let next = text.replacen(
+                actual_find.as_ref(),
+                &format!("{}\n{actual_find}", content.trim_end()),
+                1,
+            );
+            fs::write(root.join(path), next)?;
+        }
+        OpsEntry::InsertAfterText {
+            path,
+            find,
+            content,
+            ..
+        } => {
+            let text = fs::read_to_string(root.join(path))?;
+            let actual_find = text_locator_in_text(&text, find)?;
+            let separator = if actual_find.ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            let next = text.replacen(
+                actual_find.as_ref(),
+                &format!("{actual_find}{separator}{}\n", content.trim_end()),
+                1,
+            );
+            fs::write(root.join(path), next)?;
+        }
+        OpsEntry::ReplaceText {
+            path,
+            find,
+            replace,
+            ..
+        } => {
+            let text = fs::read_to_string(root.join(path))?;
+            let actual_find = text_locator_in_text(&text, find)?;
+            let next = text.replacen(actual_find.as_ref(), replace, 1);
+            fs::write(root.join(path), next)?;
         }
         OpsEntry::ReplaceRange {
             path,
@@ -594,6 +676,51 @@ fn validate_existing_file(root: &Path, path: &Path, expected_hash: Option<&str>)
     Ok(())
 }
 
+fn validate_replace_file(root: &Path, path: &Path, expected_hash: Option<&str>) -> Result<()> {
+    let full = root.join(path);
+    if full.exists() {
+        return validate_existing_file(root, path, expected_hash);
+    }
+    if expected_hash.is_some() {
+        bail!(
+            "replace_file target is missing but expected_hash was supplied: {}",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+fn validate_text_locator(root: &Path, path: &Path, find: &str, strict: bool) -> Result<()> {
+    validate_existing_file(root, path, None)?;
+    let text = fs::read_to_string(root.join(path))?;
+    let actual_find = text_locator_in_text(&text, find)?;
+    let matches = text.matches(actual_find.as_ref()).count();
+    match matches {
+        1 => Ok(()),
+        0 => bail!("text locator not found in {}: {}", path.display(), find),
+        _ if strict => bail!(
+            "text locator is ambiguous in {}: {} matches for {}",
+            path.display(),
+            matches,
+            find
+        ),
+        _ => Ok(()),
+    }
+}
+
+fn text_locator_in_text<'a>(text: &str, find: &'a str) -> Result<std::borrow::Cow<'a, str>> {
+    if text.contains(find) {
+        return Ok(std::borrow::Cow::Borrowed(find));
+    }
+    if find.contains('\n') {
+        let crlf = find.replace('\n', "\r\n");
+        if text.contains(&crlf) {
+            return Ok(std::borrow::Cow::Owned(crlf));
+        }
+    }
+    bail!("text locator not found: {find}");
+}
+
 fn validate_range(
     root: &Path,
     path: &Path,
@@ -685,6 +812,11 @@ fn describe_op(op: &OpsEntry) -> String {
             end_line
         ),
         OpsEntry::AppendToFile { path, .. } => format!("append_to_file {}", path.display()),
+        OpsEntry::InsertBeforeText { path, .. } => {
+            format!("insert_before_text {}", path.display())
+        }
+        OpsEntry::InsertAfterText { path, .. } => format!("insert_after_text {}", path.display()),
+        OpsEntry::ReplaceText { path, .. } => format!("replace_text {}", path.display()),
         OpsEntry::InsertBeforeAnchor { path, anchor, .. } => {
             format!("insert_before_anchor {} anchor={}", path.display(), anchor)
         }
@@ -728,6 +860,9 @@ fn op_id(op: &OpsEntry) -> Option<&str> {
         | OpsEntry::ReplaceRange { id, .. }
         | OpsEntry::DeleteRange { id, .. }
         | OpsEntry::AppendToFile { id, .. }
+        | OpsEntry::InsertBeforeText { id, .. }
+        | OpsEntry::InsertAfterText { id, .. }
+        | OpsEntry::ReplaceText { id, .. }
         | OpsEntry::InsertBeforeAnchor { id, .. }
         | OpsEntry::InsertAfterAnchor { id, .. }
         | OpsEntry::ReplaceBetweenAnchors { id, .. }
@@ -747,6 +882,9 @@ fn op_kind(op: &OpsEntry) -> &'static str {
         OpsEntry::ReplaceRange { .. } => "replace_range",
         OpsEntry::DeleteRange { .. } => "delete_range",
         OpsEntry::AppendToFile { .. } => "append_to_file",
+        OpsEntry::InsertBeforeText { .. } => "insert_before_text",
+        OpsEntry::InsertAfterText { .. } => "insert_after_text",
+        OpsEntry::ReplaceText { .. } => "replace_text",
         OpsEntry::InsertBeforeAnchor { .. } => "insert_before_anchor",
         OpsEntry::InsertAfterAnchor { .. } => "insert_after_anchor",
         OpsEntry::ReplaceBetweenAnchors { .. } => "replace_between_anchors",
@@ -766,6 +904,9 @@ fn op_path(op: &OpsEntry) -> String {
         | OpsEntry::ReplaceRange { path, .. }
         | OpsEntry::DeleteRange { path, .. }
         | OpsEntry::AppendToFile { path, .. }
+        | OpsEntry::InsertBeforeText { path, .. }
+        | OpsEntry::InsertAfterText { path, .. }
+        | OpsEntry::ReplaceText { path, .. }
         | OpsEntry::InsertBeforeAnchor { path, .. }
         | OpsEntry::InsertAfterAnchor { path, .. }
         | OpsEntry::ReplaceBetweenAnchors { path, .. }
@@ -783,7 +924,10 @@ fn locator_kind(op: &OpsEntry) -> &'static str {
         OpsEntry::CreateFile { .. }
         | OpsEntry::ReplaceFile { .. }
         | OpsEntry::DeleteFile { .. }
-        | OpsEntry::AppendToFile { .. } => "file",
+        | OpsEntry::AppendToFile { .. }
+        | OpsEntry::InsertBeforeText { .. }
+        | OpsEntry::InsertAfterText { .. }
+        | OpsEntry::ReplaceText { .. } => "file",
         OpsEntry::ReplaceRange { .. } | OpsEntry::DeleteRange { .. } => "range",
         OpsEntry::InsertBeforeAnchor { .. }
         | OpsEntry::InsertAfterAnchor { .. }
@@ -813,7 +957,10 @@ fn locator_confidence(op: &OpsEntry) -> &'static str {
             "high"
         }
         OpsEntry::ReplaceBetweenAnchors { expected_hash, .. } if expected_hash.is_some() => "high",
-        OpsEntry::InsertBeforeAnchor { .. }
+        OpsEntry::InsertBeforeText { .. }
+        | OpsEntry::InsertAfterText { .. }
+        | OpsEntry::ReplaceText { .. }
+        | OpsEntry::InsertBeforeAnchor { .. }
         | OpsEntry::InsertAfterAnchor { .. }
         | OpsEntry::ReplaceBetweenAnchors { .. } => "high",
         OpsEntry::ReplaceSymbol { expected_hash, .. }
@@ -894,6 +1041,13 @@ fn op_has_context(op: &OpsEntry) -> bool {
 fn risk_for_op(op: &OpsEntry) -> &'static str {
     match op {
         OpsEntry::CreateFile { .. }
+        | OpsEntry::ReplaceFile {
+            expected_hash: None,
+            ..
+        }
+        | OpsEntry::InsertBeforeText { .. }
+        | OpsEntry::InsertAfterText { .. }
+        | OpsEntry::ReplaceText { .. }
         | OpsEntry::InsertBeforeAnchor { .. }
         | OpsEntry::InsertAfterAnchor { .. }
         | OpsEntry::AppendToFile { .. } => "low",
@@ -933,7 +1087,9 @@ fn safety_reason_for_op(op: &OpsEntry) -> &'static str {
         OpsEntry::ReplaceFile { expected_hash, .. } if expected_hash.is_some() => {
             "file exists and expected_hash matched"
         }
-        OpsEntry::ReplaceFile { .. } => "file exists; no expected_hash supplied",
+        OpsEntry::ReplaceFile { .. } => {
+            "file may be created or replaced; no expected_hash supplied"
+        }
         OpsEntry::ReplaceRange {
             expected_hash,
             context_before,
@@ -955,6 +1111,9 @@ fn safety_reason_for_op(op: &OpsEntry) -> &'static str {
             "file exists and expected_hash matched"
         }
         OpsEntry::AppendToFile { .. } => "file exists; append has no expected_hash",
+        OpsEntry::InsertBeforeText { .. } => "text locator found",
+        OpsEntry::InsertAfterText { .. } => "text locator found",
+        OpsEntry::ReplaceText { .. } => "text locator found",
         OpsEntry::InsertBeforeAnchor { .. } | OpsEntry::InsertAfterAnchor { .. } => "anchor found",
         OpsEntry::ReplaceBetweenAnchors { expected_hash, .. } if expected_hash.is_some() => {
             "start/end anchors found in order and expected_hash matched"

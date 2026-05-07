@@ -98,5 +98,30 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         println!("    required: [{}]", required.join(", "));
         println!("    optional: [{}]", optional.join(", "));
     }
+    if example.is_none() || matches!(example, Some("replace_range" | "delete_range")) {
+        println!("examples:");
+        println!("  replace_range:");
+        println!("    kind: replace_range");
+        println!("    path: src/example.ts");
+        println!("    start_line: 10");
+        println!("    end_line: 12");
+        println!("    expected_hash: \"abc123\"");
+        println!("    context_before: |");
+        println!("      function before() {{}}");
+        println!("    context_after: |");
+        println!("      function after() {{}}");
+        println!("    content: |");
+        println!("      replacement();");
+        println!("  delete_range:");
+        println!("    kind: delete_range");
+        println!("    path: src/example.ts");
+        println!("    start_line: 20");
+        println!("    end_line: 24");
+        println!("    expected_hash: \"abc123\"");
+        println!("    context_before: |");
+        println!("      const before = true;");
+        println!("    context_after: |");
+        println!("      const after = true;");
+    }
     Ok(())
 }

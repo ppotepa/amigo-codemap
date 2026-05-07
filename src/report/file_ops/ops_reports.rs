@@ -82,6 +82,9 @@ fn kind(op: &OpsEntry) -> &'static str {
         OpsEntry::DeleteFile { .. } => "delete_file",
         OpsEntry::InsertBeforeAnchor { .. } => "insert_before_anchor",
         OpsEntry::InsertAfterAnchor { .. } => "insert_after_anchor",
+        OpsEntry::InsertBeforeText { .. } => "insert_before_text",
+        OpsEntry::InsertAfterText { .. } => "insert_after_text",
+        OpsEntry::ReplaceText { .. } => "replace_text",
         OpsEntry::ReplaceBetweenAnchors { .. } => "replace_between_anchors",
         OpsEntry::ReplaceSymbol { .. } => "replace_symbol",
         OpsEntry::DeleteSymbol { .. } => "delete_symbol",
@@ -99,6 +102,9 @@ fn path(op: &OpsEntry) -> String {
         OpsEntry::CreateFile { path, .. }
         | OpsEntry::ReplaceFile { path, .. }
         | OpsEntry::DeleteFile { path, .. }
+        | OpsEntry::InsertBeforeText { path, .. }
+        | OpsEntry::InsertAfterText { path, .. }
+        | OpsEntry::ReplaceText { path, .. }
         | OpsEntry::InsertBeforeAnchor { path, .. }
         | OpsEntry::InsertAfterAnchor { path, .. }
         | OpsEntry::ReplaceBetweenAnchors { path, .. }

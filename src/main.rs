@@ -93,6 +93,7 @@ fn main() -> Result<()> {
         | Command::OpsVerify
         | Command::OpsSummary
         | Command::RangeForSymbol
+        | Command::RangeForLines
         | Command::AnchorRange
             if cli.options.level < 2 =>
         {
@@ -797,6 +798,31 @@ fn main() -> Result<()> {
                 &map,
                 query,
                 cli.options.limit,
+            )?;
+        }
+        Command::RangeForLines => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("range-for-lines requires a file path"))?;
+            let start_line = cli
+                .options
+                .start_line
+                .ok_or_else(|| anyhow::anyhow!("range-for-lines requires start line"))?;
+            let end_line = cli
+                .options
+                .end_line
+                .ok_or_else(|| anyhow::anyhow!("range-for-lines requires end line"))?;
+            report::file_ops::range_for_lines::print_range_for_lines(
+                &cli.options.root,
+                &map,
+                std::path::Path::new(query),
+                start_line,
+                end_line,
+                &cli.options.yaml_op,
+                cli.options.context_radius,
             )?;
         }
         Command::AnchorRange => {

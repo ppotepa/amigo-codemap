@@ -481,6 +481,22 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["signature", "slice", "ops-skeleton", "ops-check"],
     },
     CommandDescriptor {
+        name: "range-for-lines",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/range_for_lines.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/range_for_lines.rs",
+        ],
+        related: &["ops-check", "ops-apply", "range-for-symbol"],
+    },
+    CommandDescriptor {
         name: "anchor-range",
         category: "file-ops",
         cli_paths: CLI_PATH,
@@ -769,6 +785,15 @@ mod tests {
             COMMANDS
                 .iter()
                 .any(|command| command.name == "range-for-symbol")
+        );
+    }
+
+    #[test]
+    fn catalog_contains_range_for_lines() {
+        assert!(
+            COMMANDS
+                .iter()
+                .any(|command| command.name == "range-for-lines")
         );
     }
 

@@ -483,6 +483,7 @@ Then run the suggested build and tests. Compiler/tests remain final truth.
 | I want ops YAML schema | `ops-schema` | `& $cm ops-schema --example replace_symbol` | Required/optional fields and examples |
 | I want an ops plan starter | `ops-skeleton` | `& $cm ops-skeleton scan_symbols --out plan.yml --write` | Creates a YAML operations skeleton |
 | I need stable symbol range data | `range-for-symbol` | `& $cm range-for-symbol scan_symbols` | Path, lines, hash, signature, ops hint |
+| I need stable line range YAML | `range-for-lines` | `& $cm range-for-lines src/foo.ts 10 20 --yaml-op replace_range` | Safe range op with hash and context |
 | I need stable anchor range data | `anchor-range` | `& $cm anchor-range properties-registry` | Path, lines, hash, anchor locator |
 | I want verify commands from YAML | `ops-verify` | `& $cm ops-verify --from plan.yml` | Prints plan verify commands |
 | I want operations log text | `ops-summary` | `& $cm ops-summary --from plan.yml --changed` | operations.md-ready summary |
@@ -773,6 +774,13 @@ Use `range-for-symbol` before hand-writing symbol/range based plans:
 
 ```powershell
 & $cm range-for-symbol scan_symbols
+```
+
+Use `range-for-lines` when instructions are line-based and should become safe YAML ops:
+
+```powershell
+& $cm range-for-lines src/foo.ts 10 20 --yaml-op replace_range
+& $cm range-for-lines src/foo.ts 10 20 --yaml-op delete_range
 ```
 
 Use `anchor-range` before hand-writing anchor based plans:
