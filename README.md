@@ -4,6 +4,39 @@
 
 It does not replace the compiler, tests, or code review. It replaces a large part of the repetitive discovery work usually done with `rg`, manual file browsing, and ad-hoc patch planning.
 
+## Benchmark Showcase
+
+These benchmarks compare codemap-first discovery against a focused standard workflow using `rg` and targeted `Get-Content`. The measurement covers research output only: commands, files opened, lines read, and estimated context tokens before the first correct patch. Full protocol and commands are documented later in [Codemap Workflow Benchmark Protocol](#codemap-workflow-benchmark-protocol).
+
+### Benchmark 1: Snapshot Label Passthrough
+
+| Method | Commands | Files opened | Lines read | Est. tokens | Result |
+|---|---:|---:|---:|---:|---|
+| codemap-first | 7 | 2 | 25 | 941 | pass |
+| standard | 5 | 4 | 2159 | 15874 | pass |
+
+Codemap-first used ~94.1% fewer estimated context tokens by reading two symbol slices instead of full DTO/source files.
+
+### Benchmark 2: Real-Snapshot Guard
+
+| Method | Commands | Files opened | Lines read | Est. tokens | Result |
+|---|---:|---:|---:|---:|---|
+| codemap-first | 10 | 5 | 230 | 3759 | pass |
+| standard | 9 | 8 | 3509 | 38561 | pass |
+
+Codemap-first used ~90.2% fewer estimated context tokens. `symbols --file --metadata` also corrected a stale guessed backend symbol to the actual `fallback_editor_snapshot`.
+
+### Benchmark 3: Pointer Fast-Path
+
+| Method | Commands | Files opened | Lines read | Est. tokens | Result |
+|---|---:|---:|---:|---:|---|
+| codemap-first | 13 | 7 | 822 | 14210 | pass |
+| standard | 14 | 13 | 4775 | 79403 | pass |
+
+Codemap-first used ~82.1% fewer estimated context tokens by using symbol metadata and narrow slices instead of full Tauri/editor-mode files.
+
+Short version: codemap does not mainly reduce command count. It reduces how much code the agent must read before it can safely edit.
+
 ## Quickstart
 
 Build the tool:
