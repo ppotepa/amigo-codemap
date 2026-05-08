@@ -756,6 +756,8 @@ delete this range
 insert after this anchor
 replace this symbol
 replace this method body
+copy or move this file
+load replacement code from a sidecar file
 ```
 
 Always run:
@@ -799,6 +801,40 @@ $yaml = "version: 1`ntask: inline`nops: []`n"
 & $cm ops-check --yaml $yaml
 ```
 
+For larger changes, keep YAML as control data and put code in sidecar files. `content_from`
+is resolved relative to the plan file, or relative to `content_root` under the plan file
+directory when `content_root` is set:
+
+```text
+.amigo/ops/my-task/
+  plan.yml
+  updates/
+    NewPanel.tsx
+    replacement.ts
+```
+
+```yaml
+version: 1
+task: my-task
+content_root: updates
+ops:
+  - id: create-panel
+    kind: create_file
+    path: crates/apps/amigo-editor/src/features/example/NewPanel.tsx
+    content_from: NewPanel.tsx
+
+  - id: replace-range
+    kind: replace_range
+    path: crates/apps/amigo-editor/src/features/example/Existing.tsx
+    start_line: 20
+    end_line: 40
+    expected_hash: "abc12345"
+    content_from: replacement.ts
+```
+
+Use exactly one of `content`/`replace` or `content_from` for content-bearing operations.
+All operation paths must be repo-relative; absolute paths and `..` are rejected.
+
 Expected output includes:
 
 ```text
@@ -816,6 +852,11 @@ Stable operations for 0.1:
 create_file
 replace_file
 delete_file
+copy_file
+move_file
+rename_file
+create_dir
+delete_dir
 append_to_file
 replace_range
 delete_range
@@ -846,7 +887,9 @@ Safety priority:
 
 `ops-check --strict` fails unsafe plans more aggressively. In strict mode, range ops should include `expected_hash` and context, symbol ops must resolve uniquely, and missing anchors/symbols are hard failures.
 
-`ops-apply` is dry-run by default. It writes only with `--write`. Use `--backup` to copy touched files to `.amigo/ops-backups/<task>/...` before writes and `--stop-on-error` to avoid continuing after a failed op.
+`ops-check` validates a plan as a sequence for basic file-system ops, so a later `copy_file` may refer to a file created earlier in the same plan.
+
+`ops-apply` is dry-run by default. It writes only with `--write`. Use `--backup` to copy touched files to `.amigo/ops-backups/<task>/...` before writes and `--stop-on-error` to avoid continuing after a failed op. `ops-apply --strict` reuses strict validation, applies all ops regardless of `--limit`, and exits non-zero when any operation fails.
 
 ### Ops Schema
 
@@ -865,9 +908,10 @@ kind: replace_symbol
 required:
   - path
   - symbol
-  - content
 optional:
   - id
+  - content
+  - content_from
   - expected_hash
   - context_before
   - context_after
@@ -911,14 +955,33 @@ verify:
 
 ```yaml
 version: 1
+content_root: updates
 ops:
   - id: create-new-panel
     kind: create_file
     path: crates/apps/amigo-editor/src/example/NewPanel.tsx
-    content: |
-      export function NewPanel() {
-        return <section>New Panel</section>;
-      }
+    content_from: NewPanel.tsx
+```
+
+### Example: Copy And Move Files
+
+```yaml
+version: 1
+task: reorganize-panels
+ops:
+  - id: copy-panel
+    kind: copy_file
+    from: crates/apps/amigo-editor/src/example/Panel.tsx
+    to: crates/apps/amigo-editor/src/example/copied/Panel.tsx
+    expected_hash: "abc12345"
+    overwrite: false
+
+  - id: move-panel
+    kind: move_file
+    from: crates/apps/amigo-editor/src/example/OldPanel.tsx
+    to: crates/apps/amigo-editor/src/example/NewPanel.tsx
+    expected_hash: "def67890"
+    overwrite: false
 ```
 
 ### Example: Insert After Anchor

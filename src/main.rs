@@ -757,6 +757,7 @@ fn main() -> Result<()> {
                 cli.options.write,
                 cli.options.backup,
                 cli.options.stop_on_error,
+                cli.options.strict,
                 cli.options.limit,
             )?;
         }

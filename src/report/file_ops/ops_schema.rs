@@ -3,32 +3,75 @@ use serde_json::json;
 
 pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> {
     let kinds = [
-        ("create_file", &["path", "content"][..], &["id"][..]),
+        (
+            "create_file",
+            &["path"][..],
+            &["id", "content", "content_from"][..],
+        ),
         (
             "replace_file",
-            &["path", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
         ("delete_file", &["path"][..], &["id", "expected_hash"][..]),
         (
+            "copy_file",
+            &["from", "to"][..],
+            &["id", "expected_hash", "overwrite"][..],
+        ),
+        (
+            "move_file",
+            &["from", "to"][..],
+            &["id", "expected_hash", "overwrite"][..],
+        ),
+        (
+            "rename_file",
+            &["from", "to"][..],
+            &["id", "expected_hash", "overwrite"][..],
+        ),
+        ("create_dir", &["path"][..], &["id"][..]),
+        ("delete_dir", &["path"][..], &["id", "recursive"][..]),
+        (
             "insert_before_anchor",
-            &["path", "anchor", "content"][..],
-            &["id"][..],
+            &["path", "anchor"][..],
+            &["id", "content", "content_from"][..],
         ),
         (
             "insert_after_anchor",
-            &["path", "anchor", "content"][..],
-            &["id"][..],
+            &["path", "anchor"][..],
+            &["id", "content", "content_from"][..],
+        ),
+        (
+            "insert_before_text",
+            &["path", "find"][..],
+            &["id", "content", "content_from"][..],
+        ),
+        (
+            "insert_after_text",
+            &["path", "find"][..],
+            &["id", "content", "content_from"][..],
+        ),
+        (
+            "replace_text",
+            &["path", "find"][..],
+            &["id", "replace", "content_from"][..],
         ),
         (
             "replace_between_anchors",
-            &["path", "start_anchor", "end_anchor", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path", "start_anchor", "end_anchor"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
         (
             "replace_symbol",
-            &["path", "symbol", "content"][..],
-            &["id", "expected_hash", "context_before", "context_after"][..],
+            &["path", "symbol"][..],
+            &[
+                "id",
+                "content",
+                "content_from",
+                "expected_hash",
+                "context_before",
+                "context_after",
+            ][..],
         ),
         (
             "delete_symbol",
@@ -37,23 +80,30 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         ),
         (
             "insert_before_symbol",
-            &["path", "symbol", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path", "symbol"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
         (
             "insert_after_symbol",
-            &["path", "symbol", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path", "symbol"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
         (
             "replace_method_body",
-            &["path", "symbol", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path", "symbol"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
         (
             "replace_range",
-            &["path", "start_line", "end_line", "content"][..],
-            &["id", "expected_hash", "context_before", "context_after"][..],
+            &["path", "start_line", "end_line"][..],
+            &[
+                "id",
+                "content",
+                "content_from",
+                "expected_hash",
+                "context_before",
+                "context_after",
+            ][..],
         ),
         (
             "delete_range",
@@ -62,8 +112,8 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         ),
         (
             "append_to_file",
-            &["path", "content"][..],
-            &["id", "expected_hash"][..],
+            &["path"][..],
+            &["id", "content", "content_from", "expected_hash"][..],
         ),
     ];
 
@@ -77,7 +127,7 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
             "{}",
             serde_json::to_string_pretty(&json!({
                 "version": 1,
-                "plan_fields": ["version", "task", "description", "ops", "verify"],
+                "plan_fields": ["version", "task", "description", "content_root", "ops", "verify"],
                 "ops": items.iter().map(|(kind, required, optional)| json!({
                     "kind": kind,
                     "required": required,
@@ -91,7 +141,8 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
     println!("version: 1");
     println!("plan_fields:");
     println!("  required: [version, ops]");
-    println!("  optional: [task, description, verify]");
+    println!("  optional: [task, description, content_root, verify]");
+    println!("  note: content ops require exactly one of content/replace or content_from.");
     println!("ops:");
     for (kind, required, optional) in items {
         println!("  - kind: {kind}");

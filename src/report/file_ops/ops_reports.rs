@@ -94,6 +94,11 @@ fn kind(op: &OpsEntry) -> &'static str {
         OpsEntry::ReplaceRange { .. } => "replace_range",
         OpsEntry::DeleteRange { .. } => "delete_range",
         OpsEntry::AppendToFile { .. } => "append_to_file",
+        OpsEntry::CopyFile { .. } => "copy_file",
+        OpsEntry::MoveFile { .. } => "move_file",
+        OpsEntry::RenameFile { .. } => "rename_file",
+        OpsEntry::CreateDir { .. } => "create_dir",
+        OpsEntry::DeleteDir { .. } => "delete_dir",
     }
 }
 
@@ -115,7 +120,16 @@ fn path(op: &OpsEntry) -> String {
         | OpsEntry::ReplaceMethodBody { path, .. }
         | OpsEntry::ReplaceRange { path, .. }
         | OpsEntry::DeleteRange { path, .. }
-        | OpsEntry::AppendToFile { path, .. } => path.to_string_lossy().replace('\\', "/"),
+        | OpsEntry::AppendToFile { path, .. }
+        | OpsEntry::CreateDir { path, .. }
+        | OpsEntry::DeleteDir { path, .. } => path.to_string_lossy().replace('\\', "/"),
+        OpsEntry::CopyFile { from, to, .. }
+        | OpsEntry::MoveFile { from, to, .. }
+        | OpsEntry::RenameFile { from, to, .. } => format!(
+            "{} -> {}",
+            from.to_string_lossy().replace('\\', "/"),
+            to.to_string_lossy().replace('\\', "/"),
+        ),
     }
 }
 
