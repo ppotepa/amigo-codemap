@@ -441,6 +441,7 @@ pub fn print_ops_apply(
     stop_on_error: bool,
     strict: bool,
     limit: usize,
+    verbose: bool,
 ) -> Result<()> {
     let plan = read_plan(from, yaml)?;
     if !write {
@@ -448,23 +449,61 @@ pub fn print_ops_apply(
         return print_ops_check(root, Some(map), from, yaml, strict, limit);
     }
 
+    if verbose {
+        println!(
+            "ops-apply: task={}",
+            plan.task.as_deref().unwrap_or("ops-plan")
+        );
+        if let Some(from) = from {
+            println!("ops-apply: plan={}", from.display());
+        }
+        if let Some(content_root) = &plan.content_root {
+            println!("ops-apply: content_root={}", content_root.display());
+        }
+        println!(
+            "ops-apply: ops={} write={} backup={} strict={} stop_on_error={}",
+            plan.ops.len(),
+            write,
+            backup,
+            strict,
+            stop_on_error
+        );
+    }
+
     if backup {
         backup_plan_files(root, &plan)?;
     }
     let mut applied = 0usize;
     let mut failed = 0usize;
-    for op in &plan.ops {
+    for (index, op) in plan.ops.iter().enumerate() {
+        if verbose {
+            if let Err(error) = print_apply_op_header(root, &plan, op, index, plan.ops.len()) {
+                println!("  verbose: failed to inspect before state: {error}");
+            }
+        }
         if let Err(error) = validate_op(root, &plan, Some(map), op, strict)
             .and_then(|_| apply_op(root, &plan, map, op, write))
         {
             failed += 1;
-            println!("failed {}: {error}", describe_op(op));
+            if verbose {
+                println!("  result: failed");
+                println!("  reason: {error}");
+            } else {
+                println!("failed {}: {error}", describe_op(op));
+            }
             if stop_on_error {
                 break;
             }
         } else {
             applied += 1;
-            println!("applied {}", describe_op(op));
+            if verbose {
+                if let Err(error) = print_apply_op_after(root, op) {
+                    println!("  verbose: failed to inspect after state: {error}");
+                }
+                println!("  result: applied");
+            } else {
+                println!("applied {}", describe_op(op));
+            }
         }
     }
     println!("ops-apply: applied={applied} failed={failed}");
@@ -472,6 +511,85 @@ pub fn print_ops_apply(
         bail!("ops-apply failed: applied={applied} failed={failed}");
     }
     Ok(())
+}
+
+fn print_apply_op_header(
+    root: &Path,
+    plan: &OpsPlan,
+    op: &OpsEntry,
+    index: usize,
+    total: usize,
+) -> Result<()> {
+    println!(
+        "[{}/{}] {} {}",
+        index + 1,
+        total,
+        op_kind(op),
+        op_id(op).unwrap_or("-")
+    );
+    println!("  path: {}", op_path(op));
+    println!("  source: {}", op_content_source(op));
+    for path in op_paths(op) {
+        let full = repo_path(root, path)?;
+        println!("  before {}: {}", path.display(), describe_file(&full));
+    }
+    if let Some(plan_dir) = &plan.plan_dir {
+        println!("  plan_dir: {}", plan_dir.display());
+    }
+    Ok(())
+}
+
+fn print_apply_op_after(root: &Path, op: &OpsEntry) -> Result<()> {
+    for path in op_paths(op) {
+        let full = repo_path(root, path)?;
+        println!("  after {}: {}", path.display(), describe_file(&full));
+    }
+    Ok(())
+}
+
+fn describe_file(path: &Path) -> String {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => "exists yes, directory".to_string(),
+        Ok(metadata) => match fs::read(path) {
+            Ok(bytes) => {
+                let lines = String::from_utf8_lossy(&bytes).lines().count();
+                format!(
+                    "exists yes, {lines} lines, {} bytes, hash {}",
+                    metadata.len(),
+                    short_hash(&bytes)
+                )
+            }
+            Err(_) => format!("exists yes, {} bytes, hash unavailable", metadata.len()),
+        },
+        Err(_) => "exists no".to_string(),
+    }
+}
+
+fn op_content_source(op: &OpsEntry) -> String {
+    let sources = op_content_from_paths(op);
+    if sources.is_empty() {
+        if matches!(
+            op,
+            OpsEntry::DeleteRange { .. }
+                | OpsEntry::DeleteFile { .. }
+                | OpsEntry::CopyFile { .. }
+                | OpsEntry::MoveFile { .. }
+                | OpsEntry::RenameFile { .. }
+                | OpsEntry::CreateDir { .. }
+                | OpsEntry::DeleteDir { .. }
+                | OpsEntry::DeleteSymbol { .. }
+        ) {
+            "none".to_string()
+        } else {
+            "inline content".to_string()
+        }
+    } else {
+        sources
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {

@@ -759,6 +759,7 @@ fn main() -> Result<()> {
                 cli.options.stop_on_error,
                 cli.options.strict,
                 cli.options.limit,
+                !cli.options.no_verbose,
             )?;
         }
         Command::OpsSchema => {
