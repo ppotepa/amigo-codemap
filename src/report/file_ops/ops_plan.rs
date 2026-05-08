@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::model::CodeMap;
 
@@ -37,6 +38,8 @@ pub enum OpsEntry {
         content: Option<String>,
         #[serde(default)]
         content_from: Option<PathBuf>,
+        #[serde(default)]
+        overwrite: bool,
     },
     #[serde(rename = "replace_file")]
     ReplaceFile {
@@ -45,6 +48,8 @@ pub enum OpsEntry {
         content: Option<String>,
         #[serde(default)]
         content_from: Option<PathBuf>,
+        #[serde(default)]
+        overwrite: bool,
         expected_hash: Option<String>,
         #[serde(default)]
         id: Option<String>,
@@ -630,17 +635,24 @@ fn validate_op(
     validate_op_paths(op)?;
     validate_content_sources(root, plan, op)?;
     match op {
-        OpsEntry::CreateFile { path, .. } => {
+        OpsEntry::CreateFile {
+            path, overwrite, ..
+        } => {
             let full = repo_path(root, path)?;
-            if full.exists() {
+            if full.exists() && !overwrite {
                 bail!("create_file target already exists: {}", path.display());
+            }
+            if full.is_dir() {
+                bail!("create_file target is a directory: {}", path.display());
             }
         }
         OpsEntry::ReplaceFile {
             path,
+            overwrite,
             expected_hash,
             ..
         } => {
+            let _ = overwrite;
             validate_replace_file(root, path, expected_hash.as_deref())?;
         }
         OpsEntry::DeleteFile {
@@ -1286,7 +1298,8 @@ fn validate_existing_file(root: &Path, path: &Path, expected_hash: Option<&str>)
     if let Some(expected_hash) = expected_hash {
         let bytes = fs::read(&full)?;
         let actual = short_hash(&bytes);
-        if actual != expected_hash {
+        let actual_sha = short_sha256_hash(&bytes);
+        if actual != expected_hash && actual_sha != expected_hash {
             bail!(
                 "hash mismatch for {}: expected {}, got {}",
                 path.display(),
@@ -1944,4 +1957,13 @@ fn short_hash(bytes: &[u8]) -> String {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("{hash:016x}")[..8].to_string()
+}
+
+fn short_sha256_hash(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest
+        .iter()
+        .take(4)
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
