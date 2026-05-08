@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -179,13 +180,26 @@ fn source_tree_modified_after(root: &Path, snapshot_modified: SystemTime) -> Res
     let mut stack = vec![root.to_path_buf()];
 
     while let Some(dir) = stack.pop() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
+        let read_dir = match fs::read_dir(&dir) {
+            Ok(read_dir) => read_dir,
+            Err(error) if is_permission_denied(&error) => continue,
+            Err(error) => return Err(error.into()),
+        };
+        for entry in read_dir {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) if is_permission_denied(&error) => continue,
+                Err(error) => return Err(error.into()),
+            };
             let path = entry.path();
             if should_skip_snapshot_stale_path(root, &path) {
                 continue;
             }
-            let metadata = entry.metadata()?;
+            let metadata = match entry.metadata() {
+                Ok(metadata) => metadata,
+                Err(error) if is_permission_denied(&error) => continue,
+                Err(error) => return Err(error.into()),
+            };
             if metadata.is_dir() {
                 stack.push(path);
                 continue;
@@ -201,6 +215,10 @@ fn source_tree_modified_after(root: &Path, snapshot_modified: SystemTime) -> Res
     }
 
     Ok(false)
+}
+
+fn is_permission_denied(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::PermissionDenied
 }
 
 fn should_skip_snapshot_stale_path(root: &Path, path: &Path) -> bool {

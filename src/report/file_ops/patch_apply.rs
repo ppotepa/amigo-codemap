@@ -142,6 +142,16 @@ fn parse_unified_diff(diff: &str) -> Result<Vec<PatchFile>> {
         if old_path.is_none() && new_path.is_none() {
             bail!("patch file entry is missing ---/+++ paths");
         }
+        if hunks.is_empty() {
+            let display_path = new_path
+                .as_ref()
+                .or(old_path.as_ref())
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
+            bail!(
+                "patch file entry `{display_path}` has no hunks; use a valid unified diff with @@ hunk headers"
+            );
+        }
         files.push(PatchFile {
             old_path,
             new_path,
@@ -151,6 +161,9 @@ fn parse_unified_diff(diff: &str) -> Result<Vec<PatchFile>> {
 
     if files.is_empty() {
         bail!("no unified diff file entries found");
+    }
+    if files.iter().map(|file| file.hunks.len()).sum::<usize>() == 0 {
+        bail!("patch has no hunks; use a valid unified diff with @@ hunk headers");
     }
     Ok(files)
 }
@@ -399,6 +412,13 @@ mod tests {
             files[0].hunks[0].lines[1],
             HunkLine::Remove("old".to_string())
         );
+    }
+
+    #[test]
+    fn rejects_file_entry_without_hunks() {
+        let diff = "diff --git a/demo.txt b/demo.txt\n--- a/demo.txt\n+++ b/demo.txt\n";
+        let error = parse_unified_diff(diff).expect_err("diff without hunks must fail");
+        assert!(error.to_string().contains("has no hunks"));
     }
 
     #[test]
