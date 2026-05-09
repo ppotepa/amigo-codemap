@@ -12,6 +12,7 @@ use crate::{output, scan};
 
 const SNAPSHOT_SCHEMA_VERSION: u16 = 1;
 const SNAPSHOT_FILE_NAME: &str = "codemap.snapshot.json";
+const DIRTY_MARKER_FILE_NAME: &str = "codemap.dirty";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotEnvelope {
@@ -38,6 +39,27 @@ pub fn snapshot_path(root: &Path) -> PathBuf {
     root.join(".amigo").join(SNAPSHOT_FILE_NAME)
 }
 
+pub fn dirty_marker_path(root: &Path) -> PathBuf {
+    root.join(".amigo").join(DIRTY_MARKER_FILE_NAME)
+}
+
+pub fn mark_dirty(root: &Path) -> Result<()> {
+    let path = dirty_marker_path(root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, b"dirty")?;
+    Ok(())
+}
+
+pub fn clear_dirty(root: &Path) -> Result<()> {
+    let path = dirty_marker_path(root);
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 pub fn write_snapshot(options: &Options, map: &CodeMap) -> Result<()> {
     let path = snapshot_path(&options.root);
 
@@ -54,6 +76,7 @@ pub fn write_snapshot(options: &Options, map: &CodeMap) -> Result<()> {
     };
 
     fs::write(path, serde_json::to_vec(&envelope)?)?;
+    clear_dirty(&options.root)?;
     Ok(())
 }
 
@@ -154,6 +177,10 @@ pub fn snapshot_is_usable(options: &Options, envelope: &SnapshotEnvelope) -> boo
 }
 
 pub fn snapshot_may_be_stale(options: &Options) -> bool {
+    if dirty_marker_path(&options.root).exists() {
+        return true;
+    }
+
     let snapshot = snapshot_path(&options.root);
 
     let Ok(snapshot_meta) = fs::metadata(&snapshot) else {

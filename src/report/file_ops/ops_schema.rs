@@ -127,7 +127,13 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
             "{}",
             serde_json::to_string_pretty(&json!({
                 "version": 1,
-                "plan_fields": ["version", "task", "description", "content_root", "ops", "verify"],
+                "plan_fields": {
+                    "required": ["ops"],
+                    "optional": ["version", "task", "description", "content_root", "verify"],
+                    "defaults": {
+                        "version": 1
+                    }
+                },
                 "ops": items.iter().map(|(kind, required, optional)| json!({
                     "kind": kind,
                     "required": required,
@@ -138,10 +144,10 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         return Ok(());
     }
 
-    println!("version: 1");
     println!("plan_fields:");
-    println!("  required: [version, ops]");
-    println!("  optional: [task, description, content_root, verify]");
+    println!("  required: [ops]");
+    println!("  optional: [version, task, description, content_root, verify]");
+    println!("  defaults: version=1");
     println!("  note: content ops require exactly one of content/replace or content_from.");
     println!("ops:");
     for (kind, required, optional) in items {

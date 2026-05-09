@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 use serde::Deserialize;
+use serde_yaml::Value;
 use sha2::{Digest, Sha256};
 
 use crate::model::CodeMap;
@@ -11,6 +12,7 @@ use crate::model::CodeMap;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpsPlan {
+    #[serde(default = "default_ops_plan_version")]
     pub version: u16,
     #[serde(default)]
     pub task: Option<String>,
@@ -23,6 +25,10 @@ pub struct OpsPlan {
     pub verify: Vec<String>,
     #[serde(skip)]
     pub plan_dir: Option<PathBuf>,
+}
+
+fn default_ops_plan_version() -> u16 {
+    1
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,6 +318,15 @@ pub fn print_ops_preview(
     Ok(())
 }
 
+pub fn plan_requires_codemap(
+    from: Option<&Path>,
+    yaml: Option<&str>,
+    strict: bool,
+) -> Result<bool> {
+    let plan = read_plan(from, yaml)?;
+    Ok(plan.ops.iter().any(|op| op_requires_codemap(op, strict)))
+}
+
 pub fn print_ops_check(
     root: &Path,
     map: Option<&CodeMap>,
@@ -438,7 +453,7 @@ fn record_virtual_effect(op: &OpsEntry, virtual_existing: &mut std::collections:
 
 pub fn print_ops_apply(
     root: &Path,
-    map: &CodeMap,
+    map: Option<&CodeMap>,
     from: Option<&Path>,
     yaml: Option<&str>,
     write: bool,
@@ -451,7 +466,7 @@ pub fn print_ops_apply(
     let plan = read_plan(from, yaml)?;
     if !write {
         println!("ops-apply: dry-run only; pass --write");
-        return print_ops_check(root, Some(map), from, yaml, strict, limit);
+        return print_ops_check(root, map, from, yaml, strict, limit);
     }
 
     if verbose {
@@ -486,7 +501,7 @@ pub fn print_ops_apply(
                 println!("  verbose: failed to inspect before state: {error}");
             }
         }
-        if let Err(error) = validate_op(root, &plan, Some(map), op, strict)
+        if let Err(error) = validate_op(root, &plan, map, op, strict)
             .and_then(|_| apply_op(root, &plan, map, op, write))
         {
             failed += 1;
@@ -614,6 +629,7 @@ pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
             fs::read_to_string(path)?
         }
     };
+    validate_plan_shape(&text)?;
     let mut plan: OpsPlan = serde_yaml::from_str(&text)?;
     if plan.version != 1 {
         bail!("unsupported ops plan version {}; expected 1", plan.version);
@@ -623,6 +639,20 @@ pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
     }
     plan.plan_dir = plan_dir;
     Ok(plan)
+}
+
+fn validate_plan_shape(text: &str) -> Result<()> {
+    let value: Value = serde_yaml::from_str(text)
+        .map_err(|error| anyhow!("failed to parse ops plan YAML: {error}"))?;
+    let mapping = value
+        .as_mapping()
+        .ok_or_else(|| anyhow!("ops plan must be a YAML mapping with top-level `ops`"))?;
+
+    if !mapping.contains_key(&Value::String("ops".to_string())) {
+        bail!("ops plan is missing top-level `ops`");
+    }
+
+    Ok(())
 }
 
 fn validate_op(
@@ -1044,7 +1074,13 @@ fn symbol_name(op: &OpsEntry) -> Option<&str> {
     }
 }
 
-fn apply_op(root: &Path, plan: &OpsPlan, map: &CodeMap, op: &OpsEntry, write: bool) -> Result<()> {
+fn apply_op(
+    root: &Path,
+    plan: &OpsPlan,
+    map: Option<&CodeMap>,
+    op: &OpsEntry,
+    write: bool,
+) -> Result<()> {
     match op {
         OpsEntry::CreateFile {
             path,
@@ -1250,10 +1286,12 @@ fn apply_op(root: &Path, plan: &OpsPlan, map: &CodeMap, op: &OpsEntry, write: bo
             content_from,
             ..
         } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::symbol_ops::replace_symbol(root, map, path, symbol, &content, write)?;
         }
         OpsEntry::DeleteSymbol { path, symbol, .. } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             super::symbol_ops::delete_symbol(root, map, path, symbol, write)?;
         }
         OpsEntry::InsertBeforeSymbol {
@@ -1263,6 +1301,7 @@ fn apply_op(root: &Path, plan: &OpsPlan, map: &CodeMap, op: &OpsEntry, write: bo
             content_from,
             ..
         } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::symbol_ops::insert_before_symbol(root, map, path, symbol, &content, write)?;
         }
@@ -1273,6 +1312,7 @@ fn apply_op(root: &Path, plan: &OpsPlan, map: &CodeMap, op: &OpsEntry, write: bo
             content_from,
             ..
         } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::symbol_ops::insert_after_symbol(root, map, path, symbol, &content, write)?;
         }
@@ -1283,11 +1323,24 @@ fn apply_op(root: &Path, plan: &OpsPlan, map: &CodeMap, op: &OpsEntry, write: bo
             content_from,
             ..
         } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::symbol_ops::replace_method_body(root, map, path, symbol, &content, write)?;
         }
     }
     Ok(())
+}
+
+fn op_requires_codemap(op: &OpsEntry, strict: bool) -> bool {
+    match op {
+        OpsEntry::ReplaceSymbol { .. }
+        | OpsEntry::DeleteSymbol { .. }
+        | OpsEntry::InsertBeforeSymbol { .. }
+        | OpsEntry::InsertAfterSymbol { .. }
+        | OpsEntry::ReplaceMethodBody { .. } => true,
+        _ if strict && matches!(locator_kind(op), "symbol") => true,
+        _ => false,
+    }
 }
 
 fn validate_existing_file(root: &Path, path: &Path, expected_hash: Option<&str>) -> Result<()> {
@@ -1966,4 +2019,48 @@ fn short_sha256_hash(bytes: &[u8]) -> String {
         .take(4)
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_plan;
+
+    #[test]
+    fn read_plan_accepts_versionless_ops_plan() {
+        let plan = read_plan(None, Some("ops: []\n")).expect("versionless plan should parse");
+
+        assert_eq!(plan.version, 1);
+        assert!(plan.ops.is_empty());
+    }
+
+    #[test]
+    fn read_plan_accepts_explicit_version_one() {
+        let plan = read_plan(None, Some("version: 1\nops: []\n")).expect("v1 plan should parse");
+
+        assert_eq!(plan.version, 1);
+    }
+
+    #[test]
+    fn read_plan_rejects_unknown_version() {
+        let error = read_plan(None, Some("version: 2\nops: []\n"))
+            .expect_err("unknown version should fail");
+
+        assert!(error.to_string().contains("unsupported ops plan version 2"));
+    }
+
+    #[test]
+    fn read_plan_reports_missing_ops_clearly() {
+        let error =
+            read_plan(None, Some("task: missing-ops\n")).expect_err("missing ops should fail");
+
+        assert!(error.to_string().contains("missing top-level `ops`"));
+    }
+
+    #[test]
+    fn read_plan_reports_non_mapping_clearly() {
+        let error = read_plan(None, Some("- kind: replace_text\n"))
+            .expect_err("non-mapping plan should fail");
+
+        assert!(error.to_string().contains("must be a YAML mapping"));
+    }
 }

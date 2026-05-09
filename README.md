@@ -39,6 +39,12 @@ Short version: codemap does not mainly reduce command count. It reduces how much
 
 ## Quickstart
 
+Daemon usage guide is available in:
+
+```text
+README_DAEMON.md
+```
+
 Build the tool:
 
 ```powershell
@@ -797,9 +803,12 @@ Ops input can come from a file, stdin, or inline YAML:
 ```powershell
 & $cm ops-check --from plan.yml
 Get-Content .\plan.yml | & $cm ops-check --from -
-$yaml = "version: 1`ntask: inline`nops: []`n"
+$yaml = "task: inline`nops: []`n"
 & $cm ops-check --yaml $yaml
 ```
+
+`version: 1` is optional for ops plans. If it is omitted, codemap treats the
+plan as ops-plan v1. Prefer the shorter `ops:` form for small plans.
 
 For larger changes, keep YAML as control data and put code in sidecar files. `content_from`
 is resolved relative to the plan file, or relative to `content_root` under the plan file
@@ -814,7 +823,6 @@ directory when `content_root` is set:
 ```
 
 ```yaml
-version: 1
 task: my-task
 content_root: updates
 ops:
@@ -933,7 +941,6 @@ Use these helpers after a larger plan exists:
 ### Example: Replace A Line Range
 
 ```yaml
-version: 1
 task: replace-one-line
 description: "Replace one line in a temp file."
 ops:
@@ -954,7 +961,6 @@ verify:
 ### Example: Create A File
 
 ```yaml
-version: 1
 content_root: updates
 ops:
   - id: create-new-panel
@@ -966,7 +972,6 @@ ops:
 ### Example: Copy And Move Files
 
 ```yaml
-version: 1
 task: reorganize-panels
 ops:
   - id: copy-panel
@@ -987,7 +992,6 @@ ops:
 ### Example: Insert After Anchor
 
 ```yaml
-version: 1
 ops:
   - id: add-properties-panel-import
     kind: insert_after_anchor
@@ -1000,7 +1004,6 @@ ops:
 ### Example: Replace Between Anchors
 
 ```yaml
-version: 1
 task: replace-registry-section
 ops:
   - id: replace-properties-registry-section
@@ -1047,7 +1050,6 @@ The code changes should live in `plan.yml` whenever practical. Prose should expl
 ### Example: Replace Symbol, Experimental
 
 ```yaml
-version: 1
 ops:
   - id: replace-scan-symbols
     kind: replace_symbol
@@ -1588,7 +1590,6 @@ Optional ops smoke test:
 Set-Content -Encoding UTF8 .\tmp.txt "a`nb`nc`n"
 
 $plan = @"
-version: 1
 ops:
   - kind: replace_range
     path: tmp.txt

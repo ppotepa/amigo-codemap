@@ -46,6 +46,7 @@ pub fn watch_project(options: Options) -> Result<()> {
                 {
                     continue;
                 }
+                let _ = snapshot_store::mark_dirty(&options.root);
                 pending = true;
                 last_event = Instant::now();
             }

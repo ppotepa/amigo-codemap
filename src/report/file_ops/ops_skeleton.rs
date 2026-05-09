@@ -33,7 +33,6 @@ pub fn print_ops_skeleton(
 fn render_ops_skeleton(map: &CodeMap, query: &str, limit: usize) -> String {
     let mut output = String::new();
     let task = slug(query);
-    output.push_str("version: 1\n");
     output.push_str(&format!("task: {task}\n"));
     output.push_str("ops:\n");
 
