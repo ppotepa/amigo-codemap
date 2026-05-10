@@ -422,6 +422,9 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         lines: false,
         line_range: None,
         limit: 80,
+        min_score: 0,
+        report: false,
+        file_lines: 450,
         verify_args: Vec::new(),
         changed_only: false,
         patterns: Vec::new(),
@@ -454,6 +457,8 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         no_cache: false,
         compact: false,
         hide_generated: false,
+        include_tests: false,
+        include_generated: false,
         warnings: false,
     }
 }

@@ -12,6 +12,7 @@ pub mod anchors;
 pub mod api_surface;
 pub mod callsite_candidates;
 pub mod change_plan;
+pub mod code_smells;
 pub mod command_map;
 pub mod common;
 pub mod component_graph;

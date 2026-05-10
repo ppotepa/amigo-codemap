@@ -139,6 +139,7 @@ pub fn run_cli() -> Result<()> {
         }
         Command::OpenSet
         | Command::LargeFiles
+        | Command::Smells
         | Command::PatchPreview
         | Command::AppendPlan
         | Command::CopyPlan
@@ -962,6 +963,26 @@ pub fn run_cli() -> Result<()> {
         Command::RiskIndex => {
             let map = load_report_map(&cli.options)?;
             report::risk_index::print_risk_index(&map, cli.options.limit);
+        }
+        Command::Smells => {
+            let map = load_report_map(&cli.options)?;
+            report::code_smells::print_code_smells(
+                &cli.options.root,
+                &map,
+                report::code_smells::SmellOptions {
+                    top: cli.options.top.max(1),
+                    changed_only: cli.options.changed_only,
+                    group: cli.options.group.clone(),
+                    min_score: cli.options.min_score,
+                    report: cli.options.report,
+                    file_lines: cli.options.file_lines,
+                    json: cli.options.json,
+                    why: cli.options.why,
+                    include_tests: cli.options.include_tests,
+                    include_generated: cli.options.include_generated,
+                    file: cli.options.file.clone(),
+                },
+            )?;
         }
         Command::CommitFiles => {
             let map = load_report_map(&cli.options)?;

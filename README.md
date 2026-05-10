@@ -503,6 +503,7 @@ Then run the suggested build and tests. Compiler/tests remain final truth.
 | I want frontend/backend Tauri flow | `tauri-graph` | `& $cm tauri-graph --limit 50` | Invokes, backend commands, DTO hints |
 | I want likely callsites | `callsite-candidates` | `& $cm callsite-candidates scan_symbols` | Heuristic callsite list |
 | I want TODO/risk scope | `todo-index` / `risk-index` | `& $cm risk-index --limit 30` | Indexed TODO/risk/large/changed files |
+| I want refactor candidates | `smells` | `& $cm smells --top 30 --why` | Ranked Refactor Radar with score, smells, metrics, and next actions |
 | I want to apply changes safely | `patch-check` / `ops-check` | `& $cm ops-check --from plan.yml` | Validates before write |
 | I want ops YAML schema | `ops-schema` | `& $cm ops-schema --example replace_symbol` | Required/optional fields and examples |
 | I want an ops plan starter | `ops-skeleton` | `& $cm ops-skeleton scan_symbols --out plan.yml --write` | Creates a YAML operations skeleton |
@@ -524,6 +525,48 @@ Show a compact overview of the repository snapshot.
 ```
 
 Use when starting work, checking whether codemap sees the repo, or orienting a new agent.
+
+### `smells`
+
+Print the Refactor Radar / Code Smell Index. This is a ranking for likely technical debt hotspots, not a build-blocking lint.
+
+```powershell
+& $cm smells --top 30 --why
+& $cm smells --changed --why
+& $cm smells --file crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs --why
+& $cm smells --group domain --top 30
+& $cm smells --json
+```
+
+Use `--report` for a full report instead of a top-N list. Use shell redirection when the report should be saved.
+
+```powershell
+& $cm smells --report --file-lines 500 --min-score 30 --why > .amigo\code-smells-report.txt
+```
+
+Useful options:
+
+```text
+--top N
+--changed
+--group domain|package|path|language|smell|severity
+--min-score N
+--file-lines N
+--json
+--why
+--include-tests
+--include-generated
+--file <path>
+--report
+```
+
+`--file-lines N` controls file-size smells:
+
+```text
+file.large     > N lines
+file.too_large > N + 250 lines
+file.god_file  > N + 550 lines
+```
 
 ### `scan`
 
@@ -1678,6 +1721,8 @@ c
 # Quality
 & $cm todo-index
 & $cm risk-index
+& $cm smells --top 30 --why
+& $cm smells --report --file-lines 500 --min-score 30 --why
 ```
 
 ## Practical Rules

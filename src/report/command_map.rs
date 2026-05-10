@@ -661,6 +661,19 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["todo-index", "large-files", "commit-files"],
     },
     CommandDescriptor {
+        name: "smells",
+        category: "quality",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/code_smells.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells.rs",
+        ],
+        related: &["risk-index", "large-files", "open-set", "slice"],
+    },
+    CommandDescriptor {
         name: "operations-summary",
         category: "summary",
         cli_paths: CLI_PATH,
@@ -887,5 +900,10 @@ mod tests {
     #[test]
     fn catalog_contains_risk_index() {
         assert!(COMMANDS.iter().any(|command| command.name == "risk-index"));
+    }
+
+    #[test]
+    fn catalog_contains_smells() {
+        assert!(COMMANDS.iter().any(|command| command.name == "smells"));
     }
 }

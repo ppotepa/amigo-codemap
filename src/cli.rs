@@ -16,6 +16,9 @@ pub struct Options {
     pub lines: bool,
     pub line_range: Option<String>,
     pub limit: usize,
+    pub min_score: usize,
+    pub report: bool,
+    pub file_lines: usize,
     pub verify_args: Vec<String>,
     pub changed_only: bool,
     pub patterns: Vec<String>,
@@ -48,6 +51,8 @@ pub struct Options {
     pub no_cache: bool,
     pub compact: bool,
     pub hide_generated: bool,
+    pub include_tests: bool,
+    pub include_generated: bool,
     pub warnings: bool,
 }
 
@@ -73,6 +78,7 @@ pub enum Command {
     CallsiteCandidates,
     TodoIndex,
     RiskIndex,
+    Smells,
     Compact,
     Explain,
     Brief,
@@ -160,6 +166,9 @@ impl Cli {
         let mut lines = false;
         let mut line_range = None;
         let mut limit = 80;
+        let mut min_score = 0usize;
+        let mut report = false;
+        let mut file_lines = 450usize;
         let mut verify_args = Vec::new();
         let mut changed_only = false;
         let mut patterns = Vec::new();
@@ -192,6 +201,8 @@ impl Cli {
         let mut no_cache = false;
         let mut compact = false;
         let mut hide_generated = false;
+        let mut include_tests = false;
+        let mut include_generated = false;
         let mut warnings = false;
 
         let args = args.into_iter().collect::<Vec<_>>();
@@ -282,6 +293,7 @@ impl Cli {
                 "callsite-candidates" => command = Some(Command::CallsiteCandidates),
                 "todo-index" => command = Some(Command::TodoIndex),
                 "risk-index" => command = Some(Command::RiskIndex),
+                "smells" | "refactor-candidates" => command = Some(Command::Smells),
                 "compact" => command = Some(Command::Compact),
                 "brief" => command = Some(Command::Brief),
                 "find" => command = Some(Command::Find),
@@ -444,6 +456,15 @@ impl Cli {
                     index += 1;
                     top = required_value(&args, index, "--top")?.parse::<usize>()?;
                 }
+                "--min-score" => {
+                    index += 1;
+                    min_score = required_value(&args, index, "--min-score")?.parse::<usize>()?;
+                }
+                "--file-lines" => {
+                    index += 1;
+                    file_lines = required_value(&args, index, "--file-lines")?.parse::<usize>()?;
+                }
+                "--report" => report = true,
                 "--with-split-hints" => with_split_hints = true,
                 "--save" => save = true,
                 "--status" => status = true,
@@ -461,6 +482,8 @@ impl Cli {
                 "--no-cache" => no_cache = true,
                 "--compact" => compact = true,
                 "--hide-generated" => hide_generated = true,
+                "--include-tests" => include_tests = true,
+                "--include-generated" => include_generated = true,
                 "--warnings" => warnings = true,
                 unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
                 value => match command {
@@ -549,6 +572,9 @@ impl Cli {
                 lines,
                 line_range,
                 limit,
+                min_score,
+                report,
+                file_lines,
                 verify_args,
                 changed_only,
                 patterns,
@@ -581,6 +607,8 @@ impl Cli {
                 no_cache,
                 compact,
                 hide_generated,
+                include_tests,
+                include_generated,
                 warnings,
             },
         })
@@ -621,6 +649,7 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "callsite-candidates" => Some(Command::CallsiteCandidates),
         "todo-index" => Some(Command::TodoIndex),
         "risk-index" => Some(Command::RiskIndex),
+        "smells" | "refactor-candidates" => Some(Command::Smells),
         "compact" => Some(Command::Compact),
         "brief" => Some(Command::Brief),
         "find" => Some(Command::Find),
@@ -984,6 +1013,48 @@ mod tests {
             Some("crates/apps/amigo-editor/src/app/main.tsx".to_string())
         );
         assert!(cli.options.save);
+    }
+
+    #[test]
+    fn parses_smells_options() {
+        let cli = Cli::parse([
+            "smells".to_string(),
+            "--top".to_string(),
+            "30".to_string(),
+            "--why".to_string(),
+            "--min-score".to_string(),
+            "50".to_string(),
+            "--report".to_string(),
+            "--file-lines".to_string(),
+            "500".to_string(),
+            "--include-tests".to_string(),
+            "--include-generated".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Smells);
+        assert_eq!(cli.options.top, 30);
+        assert_eq!(cli.options.min_score, 50);
+        assert!(cli.options.report);
+        assert_eq!(cli.options.file_lines, 500);
+        assert!(cli.options.why);
+        assert!(cli.options.include_tests);
+        assert!(cli.options.include_generated);
+    }
+
+    #[test]
+    fn parses_refactor_candidates_alias() {
+        let cli = Cli::parse([
+            "refactor-candidates".to_string(),
+            "--changed".to_string(),
+            "--group".to_string(),
+            "domain".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::Smells);
+        assert!(cli.options.changed_only);
+        assert_eq!(cli.options.group.as_deref(), Some("domain"));
     }
 
     #[test]
