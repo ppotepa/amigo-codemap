@@ -2,10 +2,15 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use super::ops_plan::{OpsEntry, read_plan};
+use super::ops_plan::{OpsEntry, OpsInputFormat, read_plan_with_format};
 
-pub fn print_ops_verify(from: Option<&Path>, yaml: Option<&str>, run: bool) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+pub fn print_ops_verify(
+    from: Option<&Path>,
+    yaml: Option<&str>,
+    input_format: OpsInputFormat,
+    run: bool,
+) -> Result<()> {
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     println!("ops-verify:");
     if plan.verify.is_empty() {
         println!("  none");
@@ -20,8 +25,13 @@ pub fn print_ops_verify(from: Option<&Path>, yaml: Option<&str>, run: bool) -> R
     Ok(())
 }
 
-pub fn print_ops_summary(from: Option<&Path>, yaml: Option<&str>, changed: bool) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+pub fn print_ops_summary(
+    from: Option<&Path>,
+    yaml: Option<&str>,
+    input_format: OpsInputFormat,
+    changed: bool,
+) -> Result<()> {
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     let task = plan.task.as_deref().unwrap_or("Ops Plan");
     println!("### {}", title(task));
     println!(
@@ -43,8 +53,13 @@ pub fn print_ops_summary(from: Option<&Path>, yaml: Option<&str>, changed: bool)
     Ok(())
 }
 
-pub fn print_ops_split(from: Option<&Path>, yaml: Option<&str>, by: Option<&str>) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+pub fn print_ops_split(
+    from: Option<&Path>,
+    yaml: Option<&str>,
+    input_format: OpsInputFormat,
+    by: Option<&str>,
+) -> Result<()> {
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     let by = by.unwrap_or("domain");
     let mut groups = std::collections::BTreeMap::<String, Vec<&OpsEntry>>::new();
     for op in &plan.ops {

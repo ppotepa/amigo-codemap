@@ -54,7 +54,8 @@ cargo build -p amigo-codemap
 Optionally create a short alias for the current PowerShell session:
 
 ```powershell
-$cm = "target\debug\amigo-codemap.exe"
+Copy-Item target\debug\amigo-codemap.exe target\debug\amigo-codemap-stable.exe
+$cm = "target\debug\amigo-codemap-stable.exe"
 ```
 
 Run the default navigation loop:
@@ -75,6 +76,23 @@ For most tasks, start with:
 & $cm trace <thing> --limit 20
 & $cm open-set <thing> --why --limit 10
 ```
+
+## Raw Ops Workflow
+
+Use codemap as the first navigation layer. Do not begin implementation by reading whole files, running repo-wide `rg`, or opening `concat-output.txt`.
+
+For chat-facing change instructions, prefer raw ops blocks:
+
+```text
+ACTION: REPLACE SYMBOL
+FILE: crates/example/src/lib.rs
+SYMBOL: run
+CONTENT:
+fn run() {}
+END
+```
+
+`ops-preview`, `ops-check`, `ops-apply`, `ops-verify`, `ops-summary`, and `ops-skeleton` accept `--raw`. Internally the tool converts raw blocks to the existing `OpsPlan` model, so YAML remains the storage/interchange backend while raw stays the preferred human/agent format.
 
 ## Fast Snapshot Workflow
 

@@ -89,6 +89,16 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["changes", "commit-files", "commit-summary", "verify-plan"],
     },
     CommandDescriptor {
+        name: "verify-plan",
+        category: "verify",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/verify_plan.rs"],
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        related: &["changes", "commit-plan", "ops-verify"],
+    },
+    CommandDescriptor {
         name: "taxonomy",
         category: "meta",
         cli_paths: CLI_PATH,
@@ -805,6 +815,7 @@ mod tests {
             "ops-verify",
             "ops-summary",
             "anchor-range",
+            "verify-plan",
         ] {
             assert!(COMMANDS.iter().any(|command| command.name == name));
         }

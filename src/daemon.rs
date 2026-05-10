@@ -448,6 +448,7 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         why: false,
         metadata: false,
         json: false,
+        raw: false,
         no_verbose: false,
         quiet: false,
         no_cache: false,

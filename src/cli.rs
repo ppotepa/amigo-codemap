@@ -42,6 +42,7 @@ pub struct Options {
     pub why: bool,
     pub metadata: bool,
     pub json: bool,
+    pub raw: bool,
     pub no_verbose: bool,
     pub quiet: bool,
     pub no_cache: bool,
@@ -182,6 +183,7 @@ impl Cli {
         let mut why = false;
         let mut metadata = false;
         let mut json = false;
+        let mut raw = false;
         let mut no_verbose = false;
         let mut quiet = false;
         let mut no_cache = false;
@@ -447,6 +449,7 @@ impl Cli {
                 "--why" => why = true,
                 "--metadata" => metadata = true,
                 "--json" => json = true,
+                "--raw" => raw = true,
                 "--no-verbose" => no_verbose = true,
                 "--quiet" => quiet = true,
                 "--no-cache" => no_cache = true,
@@ -563,6 +566,7 @@ impl Cli {
                 why,
                 metadata,
                 json,
+                raw,
                 no_verbose,
                 quiet,
                 no_cache,
@@ -1131,12 +1135,14 @@ mod tests {
             "--yaml".to_string(),
             "ops: []".to_string(),
             "--strict".to_string(),
+            "--raw".to_string(),
         ])
         .expect("cli should parse");
 
         assert_eq!(cli.command, Command::OpsCheck);
         assert_eq!(cli.options.yaml.as_deref(), Some("ops: []"));
         assert!(cli.options.strict);
+        assert!(cli.options.raw);
     }
 
     #[test]

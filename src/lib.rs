@@ -20,6 +20,14 @@ use std::time::Instant;
 use anyhow::Result;
 use cli::{Cli, Command};
 
+fn ops_input_format(raw: bool) -> report::file_ops::ops_plan::OpsInputFormat {
+    if raw {
+        report::file_ops::ops_plan::OpsInputFormat::Raw
+    } else {
+        report::file_ops::ops_plan::OpsInputFormat::Yaml
+    }
+}
+
 fn load_report_map(options: &cli::Options) -> Result<model::CodeMap> {
     if let Some(map) = daemon_client::try_load_map(options)? {
         return Ok(map);
@@ -736,6 +744,7 @@ pub fn run_cli() -> Result<()> {
                 &cli.options.root,
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.limit,
             )?;
         }
@@ -743,6 +752,7 @@ pub fn run_cli() -> Result<()> {
             let needs_map = report::file_ops::ops_plan::plan_requires_codemap(
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.strict,
             )?;
             let map = if needs_map {
@@ -755,6 +765,7 @@ pub fn run_cli() -> Result<()> {
                 map.as_ref(),
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.strict,
                 cli.options.limit,
             )?;
@@ -763,6 +774,7 @@ pub fn run_cli() -> Result<()> {
             let needs_map = report::file_ops::ops_plan::plan_requires_codemap(
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.strict,
             )?;
             let map = if needs_map {
@@ -775,6 +787,7 @@ pub fn run_cli() -> Result<()> {
                 map.as_ref(),
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.write,
                 cli.options.backup,
                 cli.options.stop_on_error,
@@ -793,6 +806,7 @@ pub fn run_cli() -> Result<()> {
             report::file_ops::ops_reports::print_ops_split(
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.by.as_deref(),
             )?;
         }
@@ -800,6 +814,7 @@ pub fn run_cli() -> Result<()> {
             report::file_ops::ops_reports::print_ops_verify(
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.run,
             )?;
         }
@@ -807,6 +822,7 @@ pub fn run_cli() -> Result<()> {
             report::file_ops::ops_reports::print_ops_summary(
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
+                ops_input_format(cli.options.raw),
                 cli.options.changed_only,
             )?;
         }
@@ -822,6 +838,7 @@ pub fn run_cli() -> Result<()> {
                 query,
                 &cli.options.out,
                 cli.options.write,
+                cli.options.raw,
                 cli.options.limit,
             )?;
         }

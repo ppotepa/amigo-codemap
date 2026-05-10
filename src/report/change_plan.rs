@@ -14,23 +14,30 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     if !tokens.is_empty() {
         println!("tokens: {}", tokens.join(", "));
     }
-    println!("1. scope:");
+    println!("1. Cel zmiany:");
+    println!("  {query}");
+    println!("2. Nawigacja codemap:");
+    println!("  change-plan: amigo-codemap change-plan {query} --limit {limit}");
+    println!("  trace: amigo-codemap trace <symbol-or-text> --limit 10");
+    println!("  open-set: amigo-codemap open-set {query} --why --limit {limit}");
+    println!("  symbols: amigo-codemap symbols {query} --limit {limit}");
+    println!("  slice/range: amigo-codemap signature <symbol>; amigo-codemap range-for-symbol <symbol>; amigo-codemap slice <file> --symbol <symbol>");
+    println!("3. Oczekiwany open-set:");
     print_scope(map, query, &tokens, limit);
-    println!("2. symbols:");
+    println!("4. Symbole:");
     print_symbols(map, query, &tokens, limit);
-    println!("3. anchor scope:");
+    println!("5. Anchor scope:");
     print_anchor_scope(map, query, &tokens, limit);
-    println!("4. text/config:");
+    println!("6. Text/config:");
     print_text(map, query, &tokens, limit);
-    println!("5. suggested commands:");
-    println!("  amigo-codemap trace {query} --limit {limit}");
-    println!("  amigo-codemap anchors {query} --limit {limit}");
-    println!("  amigo-codemap open-set {query} --why --limit {limit}");
-    println!("  amigo-codemap impact {query} --limit {limit}");
-    println!("  amigo-codemap verify-plan --changed");
-    println!("6. verify:");
+    println!("7. Instrukcje per plik:");
+    println!("  use raw ops blocks with ACTION, FILE, SYMBOL/WITHIN_SYMBOL, FIND/REPLACE, CONTENT, END");
+    println!("8. Konkretne zmiany kodu:");
+    println!("  supported actions: CREATE FILE, REPLACE SYMBOL, INSERT BEFORE SYMBOL, INSERT AFTER SYMBOL, REPLACE TEXT, INSERT BEFORE TEXT, INSERT AFTER TEXT, REPLACE RANGE, DELETE RANGE, MODIFY ENUM, MODIFY MATCH");
+    println!("9. Testy i verify:");
     println!("  cargo build -p amigo-codemap");
     println!("  cargo test -p amigo-codemap");
+    println!("  amigo-codemap verify-plan --changed");
     Ok(())
 }
 

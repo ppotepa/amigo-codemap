@@ -9,6 +9,12 @@ use sha2::{Digest, Sha256};
 
 use crate::model::CodeMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpsInputFormat {
+    Yaml,
+    Raw,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpsPlan {
@@ -280,9 +286,10 @@ pub fn print_ops_preview(
     root: &Path,
     from: Option<&Path>,
     yaml: Option<&str>,
+    input_format: OpsInputFormat,
     limit: usize,
 ) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     println!("ops-preview: version {}", plan.version);
     if let Some(task) = &plan.task {
         println!("task: {task}");
@@ -321,9 +328,10 @@ pub fn print_ops_preview(
 pub fn plan_requires_codemap(
     from: Option<&Path>,
     yaml: Option<&str>,
+    input_format: OpsInputFormat,
     strict: bool,
 ) -> Result<bool> {
-    let plan = read_plan(from, yaml)?;
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     Ok(plan.ops.iter().any(|op| op_requires_codemap(op, strict)))
 }
 
@@ -332,10 +340,11 @@ pub fn print_ops_check(
     map: Option<&CodeMap>,
     from: Option<&Path>,
     yaml: Option<&str>,
+    input_format: OpsInputFormat,
     strict: bool,
     limit: usize,
 ) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     println!("ops-check: version {}", plan.version);
     if let Some(task) = &plan.task {
         println!("task: {task}");
@@ -456,6 +465,7 @@ pub fn print_ops_apply(
     map: Option<&CodeMap>,
     from: Option<&Path>,
     yaml: Option<&str>,
+    input_format: OpsInputFormat,
     write: bool,
     backup: bool,
     stop_on_error: bool,
@@ -463,10 +473,10 @@ pub fn print_ops_apply(
     limit: usize,
     verbose: bool,
 ) -> Result<()> {
-    let plan = read_plan(from, yaml)?;
+    let plan = read_plan_with_format(from, yaml, input_format)?;
     if !write {
         println!("ops-apply: dry-run only; pass --write");
-        return print_ops_check(root, map, from, yaml, strict, limit);
+        return print_ops_check(root, map, from, yaml, input_format, strict, limit);
     }
 
     if verbose {
@@ -612,7 +622,16 @@ fn op_content_source(op: &OpsEntry) -> String {
     }
 }
 
-pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
+#[cfg(test)]
+fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
+    read_plan_with_format(from, yaml, OpsInputFormat::Yaml)
+}
+
+pub fn read_plan_with_format(
+    from: Option<&Path>,
+    yaml: Option<&str>,
+    input_format: OpsInputFormat,
+) -> Result<OpsPlan> {
     let mut plan_dir = None;
     let text = if let Some(yaml) = yaml {
         yaml.to_string()
@@ -629,8 +648,13 @@ pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
             fs::read_to_string(path)?
         }
     };
-    validate_plan_shape(&text)?;
-    let mut plan: OpsPlan = serde_yaml::from_str(&text)?;
+    let mut plan = match input_format {
+        OpsInputFormat::Yaml => {
+            validate_plan_shape(&text)?;
+            serde_yaml::from_str(&text)?
+        }
+        OpsInputFormat::Raw => parse_raw_ops_plan(&text)?,
+    };
     if plan.version != 1 {
         bail!("unsupported ops plan version {}; expected 1", plan.version);
     }
@@ -639,6 +663,216 @@ pub fn read_plan(from: Option<&Path>, yaml: Option<&str>) -> Result<OpsPlan> {
     }
     plan.plan_dir = plan_dir;
     Ok(plan)
+}
+
+fn parse_raw_ops_plan(text: &str) -> Result<OpsPlan> {
+    let mut blocks = Vec::new();
+    let mut current = RawOpsBlock::default();
+    let mut in_content = false;
+    let mut saw_block = false;
+
+    for line in text.lines() {
+        if in_content {
+            if line.trim() == "END" {
+                in_content = false;
+                blocks.push(std::mem::take(&mut current));
+                saw_block = false;
+            } else {
+                current.content.push_str(line);
+                current.content.push('\n');
+            }
+            continue;
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if trimmed == "CONTENT:" {
+            in_content = true;
+            saw_block = true;
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once(':') else {
+            bail!("raw ops line must use KEY: value format: `{trimmed}`");
+        };
+        let key = key.trim();
+        let value = value.trim().to_owned();
+        if key.eq_ignore_ascii_case("ACTION") && saw_block && current.action.is_some() {
+            blocks.push(std::mem::take(&mut current));
+        }
+        saw_block = true;
+        match key.to_ascii_uppercase().as_str() {
+            "ACTION" => current.action = Some(value),
+            "FILE" => current.file = Some(value),
+            "SYMBOL" => current.symbol = Some(value),
+            "WITHIN_SYMBOL" => current.within_symbol = Some(value),
+            "FIND" => current.find = Some(value),
+            "REPLACE" => current.replace = Some(value),
+            "START_LINE" => current.start_line = Some(value.parse()?),
+            "END_LINE" => current.end_line = Some(value.parse()?),
+            "EXPECTED_HASH" => current.expected_hash = Some(value),
+            other => bail!("unknown raw ops field `{other}`"),
+        }
+    }
+
+    if in_content {
+        bail!("raw ops CONTENT block is missing END");
+    }
+    if saw_block && current.action.is_some() {
+        blocks.push(current);
+    }
+    if blocks.is_empty() {
+        bail!("raw ops input did not contain any ACTION blocks");
+    }
+
+    let ops = blocks
+        .into_iter()
+        .enumerate()
+        .map(|(index, block)| block.into_ops_entry(index + 1))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(OpsPlan {
+        version: 1,
+        task: Some("raw-ops-plan".to_owned()),
+        description: Some("Parsed from raw ACTION blocks".to_owned()),
+        content_root: None,
+        ops,
+        verify: Vec::new(),
+        plan_dir: None,
+    })
+}
+
+#[derive(Debug, Default)]
+struct RawOpsBlock {
+    action: Option<String>,
+    file: Option<String>,
+    symbol: Option<String>,
+    within_symbol: Option<String>,
+    find: Option<String>,
+    replace: Option<String>,
+    content: String,
+    start_line: Option<usize>,
+    end_line: Option<usize>,
+    expected_hash: Option<String>,
+}
+
+impl RawOpsBlock {
+    fn into_ops_entry(self, index: usize) -> Result<OpsEntry> {
+        let action = self
+            .action
+            .as_deref()
+            .ok_or_else(|| anyhow!("raw ops block {index} is missing ACTION"))?
+            .trim()
+            .to_ascii_uppercase();
+        let path = self
+            .file
+            .as_deref()
+            .ok_or_else(|| anyhow!("raw ops block {index} is missing FILE"))?;
+        let path = PathBuf::from(path);
+        let content = if self.content.is_empty() {
+            None
+        } else {
+            Some(self.content)
+        };
+
+        match action.as_str() {
+            "CREATE FILE" => Ok(OpsEntry::CreateFile {
+                id: None,
+                path,
+                content,
+                content_from: None,
+                overwrite: false,
+            }),
+            "REPLACE SYMBOL" => Ok(OpsEntry::ReplaceSymbol {
+                id: None,
+                path,
+                symbol: required_raw_field(index, "SYMBOL", self.symbol)?,
+                content,
+                content_from: None,
+                expected_hash: self.expected_hash,
+                context_before: None,
+                context_after: None,
+            }),
+            "INSERT BEFORE SYMBOL" => Ok(OpsEntry::InsertBeforeSymbol {
+                id: None,
+                path,
+                symbol: required_raw_field(index, "SYMBOL", self.symbol)?,
+                content,
+                content_from: None,
+                expected_hash: self.expected_hash,
+            }),
+            "INSERT AFTER SYMBOL" => Ok(OpsEntry::InsertAfterSymbol {
+                id: None,
+                path,
+                symbol: required_raw_field(index, "SYMBOL", self.symbol)?,
+                content,
+                content_from: None,
+                expected_hash: self.expected_hash,
+            }),
+            "REPLACE TEXT" => Ok(OpsEntry::ReplaceText {
+                id: None,
+                path,
+                find: required_raw_field(index, "FIND", self.find)?,
+                replace: self.replace.or(content),
+                content_from: None,
+            }),
+            "INSERT BEFORE TEXT" | "INSERT" => Ok(OpsEntry::InsertBeforeText {
+                id: None,
+                path,
+                find: required_raw_field(index, "FIND", self.find)?,
+                content,
+                content_from: None,
+            }),
+            "INSERT AFTER TEXT" => Ok(OpsEntry::InsertAfterText {
+                id: None,
+                path,
+                find: required_raw_field(index, "FIND", self.find)?,
+                content,
+                content_from: None,
+            }),
+            "REPLACE RANGE" => Ok(OpsEntry::ReplaceRange {
+                id: None,
+                path,
+                start_line: self
+                    .start_line
+                    .ok_or_else(|| anyhow!("raw ops block {index} is missing START_LINE"))?,
+                end_line: self
+                    .end_line
+                    .ok_or_else(|| anyhow!("raw ops block {index} is missing END_LINE"))?,
+                content,
+                content_from: None,
+                expected_hash: self.expected_hash,
+                context_before: None,
+                context_after: None,
+            }),
+            "DELETE RANGE" => Ok(OpsEntry::DeleteRange {
+                id: None,
+                path,
+                start_line: self
+                    .start_line
+                    .ok_or_else(|| anyhow!("raw ops block {index} is missing START_LINE"))?,
+                end_line: self
+                    .end_line
+                    .ok_or_else(|| anyhow!("raw ops block {index} is missing END_LINE"))?,
+                expected_hash: self.expected_hash,
+                context_before: None,
+                context_after: None,
+            }),
+            "MODIFY ENUM" | "MODIFY MATCH" => Ok(OpsEntry::ReplaceText {
+                id: None,
+                path,
+                find: required_raw_field(index, "FIND", self.find)?,
+                replace: self.replace.or(content),
+                content_from: None,
+            }),
+            _ => bail!("unsupported raw ops ACTION `{action}` in block {index}"),
+        }
+    }
+}
+
+fn required_raw_field(index: usize, name: &str, value: Option<String>) -> Result<String> {
+    value.ok_or_else(|| anyhow!("raw ops block {index} is missing {name}"))
 }
 
 fn validate_plan_shape(text: &str) -> Result<()> {
@@ -2023,7 +2257,7 @@ fn short_sha256_hash(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::read_plan;
+    use super::{OpsEntry, OpsInputFormat, read_plan, read_plan_with_format};
 
     #[test]
     fn read_plan_accepts_versionless_ops_plan() {
@@ -2062,5 +2296,45 @@ mod tests {
             .expect_err("non-mapping plan should fail");
 
         assert!(error.to_string().contains("must be a YAML mapping"));
+    }
+
+    #[test]
+    fn raw_ops_plan_parses_replace_symbol_block() {
+        let plan = read_plan_with_format(
+            None,
+            Some(
+                "ACTION: REPLACE SYMBOL\nFILE: src/lib.rs\nSYMBOL: run\nCONTENT:\nfn run() {}\nEND\n",
+            ),
+            OpsInputFormat::Raw,
+        )
+        .expect("raw ops plan should parse");
+
+        assert_eq!(plan.version, 1);
+        assert_eq!(plan.ops.len(), 1);
+        match &plan.ops[0] {
+            OpsEntry::ReplaceSymbol {
+                path,
+                symbol,
+                content,
+                ..
+            } => {
+                assert_eq!(path.to_string_lossy(), "src/lib.rs");
+                assert_eq!(symbol, "run");
+                assert_eq!(content.as_deref(), Some("fn run() {}\n"));
+            }
+            other => panic!("expected replace_symbol, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn raw_ops_plan_rejects_missing_end() {
+        let error = read_plan_with_format(
+            None,
+            Some("ACTION: CREATE FILE\nFILE: src/lib.rs\nCONTENT:\nmod api;\n"),
+            OpsInputFormat::Raw,
+        )
+        .expect_err("unterminated content should fail");
+
+        assert!(error.to_string().contains("missing END"));
     }
 }
