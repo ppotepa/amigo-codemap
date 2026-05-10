@@ -54,7 +54,13 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         (
             "replace_text",
             &["path", "find"][..],
-            &["id", "replace", "content_from"][..],
+            &[
+                "id",
+                "replace",
+                "content_from",
+                "within_symbol",
+                "expected_matches",
+            ][..],
         ),
         (
             "replace_between_anchors",
@@ -180,5 +186,17 @@ pub fn print_ops_schema(example: Option<&str>, json_output: bool) -> Result<()> 
         println!("    context_after: |");
         println!("      const after = true;");
     }
+    println!("raw_ops:");
+    println!("  commands: ops-raw-preview, ops-raw-check, ops-raw-apply");
+    println!("  format:");
+    println!("    ACTION: replace_text");
+    println!("    FILE: crates/apps/app/src/dev_console/overlay.rs");
+    println!("    WITHIN_SYMBOL: console_panel_node");
+    println!("    EXPECTED_MATCHES: 1");
+    println!("    FIND:");
+    println!("    font_size: 14.0,");
+    println!("    REPLACE:");
+    println!("    font_size: theme.font.output_size,");
+    println!("    END");
     Ok(())
 }

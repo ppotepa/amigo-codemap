@@ -135,6 +135,10 @@ pub enum OpsEntry {
         replace: Option<String>,
         #[serde(default)]
         content_from: Option<PathBuf>,
+        #[serde(default)]
+        within_symbol: Option<String>,
+        #[serde(default)]
+        expected_matches: Option<usize>,
     },
     #[serde(rename = "insert_before_anchor")]
     InsertBeforeAnchor {
@@ -668,41 +672,52 @@ pub fn read_plan_with_format(
 fn parse_raw_ops_plan(text: &str) -> Result<OpsPlan> {
     let mut blocks = Vec::new();
     let mut current = RawOpsBlock::default();
-    let mut in_content = false;
+    let mut multiline_field = None::<String>;
     let mut saw_block = false;
 
     for line in text.lines() {
-        if in_content {
-            if line.trim() == "END" {
-                in_content = false;
+        let trimmed = line.trim();
+
+        if trimmed == "END" {
+            if let Some(field) = multiline_field.take() {
+                current.finish_multiline(&field);
+            }
+            if saw_block && current.action.is_some() {
                 blocks.push(std::mem::take(&mut current));
                 saw_block = false;
-            } else {
-                current.content.push_str(line);
-                current.content.push('\n');
             }
             continue;
         }
 
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
+        if let Some(field) = multiline_field.as_deref() {
+            if is_raw_key_line(line) {
+                let field = multiline_field.take().unwrap();
+                current.finish_multiline(&field);
+            } else {
+                current.push_multiline(field, line);
+                continue;
+            }
         }
-        if trimmed == "CONTENT:" {
-            in_content = true;
-            saw_block = true;
+
+        if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
         let Some((key, value)) = trimmed.split_once(':') else {
             bail!("raw ops line must use KEY: value format: `{trimmed}`");
         };
-        let key = key.trim();
-        let value = value.trim().to_owned();
+        let key = key.trim().to_ascii_uppercase();
+        let value = value.trim_start().to_owned();
         if key.eq_ignore_ascii_case("ACTION") && saw_block && current.action.is_some() {
             blocks.push(std::mem::take(&mut current));
         }
         saw_block = true;
-        match key.to_ascii_uppercase().as_str() {
+
+        if value.is_empty() && matches!(key.as_str(), "CONTENT" | "FIND" | "REPLACE") {
+            multiline_field = Some(key);
+            continue;
+        }
+
+        match key.as_str() {
             "ACTION" => current.action = Some(value),
             "FILE" => current.file = Some(value),
             "SYMBOL" => current.symbol = Some(value),
@@ -712,12 +727,13 @@ fn parse_raw_ops_plan(text: &str) -> Result<OpsPlan> {
             "START_LINE" => current.start_line = Some(value.parse()?),
             "END_LINE" => current.end_line = Some(value.parse()?),
             "EXPECTED_HASH" => current.expected_hash = Some(value),
+            "EXPECTED_MATCHES" => current.expected_matches = Some(value.parse()?),
             other => bail!("unknown raw ops field `{other}`"),
         }
     }
 
-    if in_content {
-        bail!("raw ops CONTENT block is missing END");
+    if let Some(field) = multiline_field.take() {
+        bail!("raw ops {field} block is missing END");
     }
     if saw_block && current.action.is_some() {
         blocks.push(current);
@@ -743,6 +759,16 @@ fn parse_raw_ops_plan(text: &str) -> Result<OpsPlan> {
     })
 }
 
+fn is_raw_key_line(line: &str) -> bool {
+    let Some((key, _)) = line.trim_start().split_once(':') else {
+        return false;
+    };
+    !key.is_empty()
+        && key
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch == '_' || ch == '-')
+}
+
 #[derive(Debug, Default)]
 struct RawOpsBlock {
     action: Option<String>,
@@ -755,15 +781,54 @@ struct RawOpsBlock {
     start_line: Option<usize>,
     end_line: Option<usize>,
     expected_hash: Option<String>,
+    expected_matches: Option<usize>,
 }
 
 impl RawOpsBlock {
+    fn push_multiline(&mut self, field: &str, line: &str) {
+        match field {
+            "CONTENT" => {
+                self.content.push_str(line);
+                self.content.push('\n');
+            }
+            "FIND" => {
+                let value = self.find.get_or_insert_with(String::new);
+                value.push_str(line);
+                value.push('\n');
+            }
+            "REPLACE" => {
+                let value = self.replace.get_or_insert_with(String::new);
+                value.push_str(line);
+                value.push('\n');
+            }
+            _ => {}
+        }
+    }
+
+    fn finish_multiline(&mut self, field: &str) {
+        match field {
+            "CONTENT" => {}
+            "FIND" => {
+                if let Some(value) = &mut self.find {
+                    *value = value.trim_end().to_string();
+                }
+            }
+            "REPLACE" => {
+                if let Some(value) = &mut self.replace {
+                    *value = value.trim_end().to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn into_ops_entry(self, index: usize) -> Result<OpsEntry> {
         let action = self
             .action
             .as_deref()
             .ok_or_else(|| anyhow!("raw ops block {index} is missing ACTION"))?
             .trim()
+            .replace('_', " ")
             .to_ascii_uppercase();
         let path = self
             .file
@@ -816,6 +881,8 @@ impl RawOpsBlock {
                 find: required_raw_field(index, "FIND", self.find)?,
                 replace: self.replace.or(content),
                 content_from: None,
+                within_symbol: self.within_symbol,
+                expected_matches: self.expected_matches,
             }),
             "INSERT BEFORE TEXT" | "INSERT" => Ok(OpsEntry::InsertBeforeText {
                 id: None,
@@ -865,6 +932,8 @@ impl RawOpsBlock {
                 find: required_raw_field(index, "FIND", self.find)?,
                 replace: self.replace.or(content),
                 content_from: None,
+                within_symbol: self.within_symbol,
+                expected_matches: self.expected_matches,
             }),
             _ => bail!("unsupported raw ops ACTION `{action}` in block {index}"),
         }
@@ -982,9 +1051,25 @@ fn validate_op(
             }
         }
         OpsEntry::InsertBeforeText { path, find, .. }
-        | OpsEntry::InsertAfterText { path, find, .. }
-        | OpsEntry::ReplaceText { path, find, .. } => {
+        | OpsEntry::InsertAfterText { path, find, .. } => {
             validate_text_locator(root, path, find, strict)?;
+        }
+        OpsEntry::ReplaceText {
+            path,
+            find,
+            within_symbol,
+            expected_matches,
+            ..
+        } => {
+            validate_replace_text_locator(
+                root,
+                map,
+                path,
+                find,
+                within_symbol.as_deref(),
+                *expected_matches,
+                strict,
+            )?;
         }
         OpsEntry::ReplaceRange {
             path,
@@ -1401,12 +1486,22 @@ fn apply_op(
             find,
             replace,
             content_from,
+            within_symbol,
+            expected_matches,
             ..
         } => {
             let replace = op_content(root, plan, replace.as_deref(), content_from.as_deref())?;
             let text = fs::read_to_string(repo_path(root, path)?)?;
             let actual_find = text_locator_in_text(&text, find)?;
-            let next = text.replacen(actual_find.as_ref(), &replace, 1);
+            let next = replace_text_in_scope(
+                map,
+                path,
+                &text,
+                actual_find.as_ref(),
+                &replace,
+                within_symbol.as_deref(),
+                *expected_matches,
+            )?;
             fs::write(repo_path(root, path)?, next)?;
         }
         OpsEntry::ReplaceRange {
@@ -1567,7 +1662,11 @@ fn apply_op(
 
 fn op_requires_codemap(op: &OpsEntry, strict: bool) -> bool {
     match op {
-        OpsEntry::ReplaceSymbol { .. }
+        OpsEntry::ReplaceText {
+            within_symbol: Some(_),
+            ..
+        }
+        | OpsEntry::ReplaceSymbol { .. }
         | OpsEntry::DeleteSymbol { .. }
         | OpsEntry::InsertBeforeSymbol { .. }
         | OpsEntry::InsertAfterSymbol { .. }
@@ -1641,6 +1740,196 @@ fn validate_text_locator(root: &Path, path: &Path, find: &str, strict: bool) -> 
         ),
         _ => Ok(()),
     }
+}
+
+fn validate_replace_text_locator(
+    root: &Path,
+    map: Option<&CodeMap>,
+    path: &Path,
+    find: &str,
+    within_symbol: Option<&str>,
+    expected_matches: Option<usize>,
+    strict: bool,
+) -> Result<()> {
+    validate_existing_file(root, path, None)?;
+    let text = fs::read_to_string(repo_path(root, path)?)?;
+    let actual_find = text_locator_in_text(&text, find)?;
+    let scope = text_scope_for_symbol(map, path, within_symbol, &text)?;
+    let matches = scope.text.matches(actual_find.as_ref()).count();
+
+    if let Some(expected) = expected_matches {
+        if expected == 0 {
+            bail!("replace_text expected_matches must be at least 1");
+        }
+        if matches != expected {
+            bail!(
+                "replace_text expected {} matches in {}{}, got {}",
+                expected,
+                path.display(),
+                within_symbol
+                    .map(|symbol| format!(" within symbol `{symbol}`"))
+                    .unwrap_or_default(),
+                matches
+            );
+        }
+        return Ok(());
+    }
+
+    match matches {
+        1 => Ok(()),
+        0 => bail!("text locator not found in {}: {}", path.display(), find),
+        _ if strict => bail!(
+            "text locator is ambiguous in {}: {} matches for {}",
+            path.display(),
+            matches,
+            find
+        ),
+        _ => Ok(()),
+    }
+}
+
+struct TextScope {
+    start_byte: usize,
+    end_byte: usize,
+    text: String,
+}
+
+fn text_scope_for_symbol(
+    map: Option<&CodeMap>,
+    path: &Path,
+    symbol_name: Option<&str>,
+    full_text: &str,
+) -> Result<TextScope> {
+    let Some(symbol_name) = symbol_name else {
+        return Ok(TextScope {
+            start_byte: 0,
+            end_byte: full_text.len(),
+            text: full_text.to_string(),
+        });
+    };
+
+    let map = map.ok_or_else(|| anyhow!("within_symbol requires codemap"))?;
+    let path_text = path.to_string_lossy().replace('\\', "/");
+    let file = map
+        .files
+        .iter()
+        .find(|file| file.path.to_string_lossy().replace('\\', "/") == path_text)
+        .ok_or_else(|| anyhow!("file not found in codemap for within_symbol: {path_text}"))?;
+
+    let matches = map
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.file_id == file.id && symbol.name == symbol_name)
+        .collect::<Vec<_>>();
+
+    let symbol = match matches.as_slice() {
+        [symbol] => *symbol,
+        [] => bail!(
+            "within_symbol not found in {}: {}",
+            path.display(),
+            symbol_name
+        ),
+        _ => bail!(
+            "within_symbol is ambiguous in {}: {}",
+            path.display(),
+            symbol_name
+        ),
+    };
+
+    let (start_byte, end_byte) = line_range_byte_span(full_text, symbol.line, symbol.line_end)
+        .ok_or_else(|| {
+            anyhow!(
+                "invalid within_symbol range for {} in {}:{}-{}",
+                symbol_name,
+                path.display(),
+                symbol.line,
+                symbol.line_end
+            )
+        })?;
+
+    Ok(TextScope {
+        start_byte,
+        end_byte,
+        text: full_text[start_byte..end_byte].to_string(),
+    })
+}
+
+fn line_range_byte_span(text: &str, start_line: usize, end_line: usize) -> Option<(usize, usize)> {
+    if start_line == 0 || end_line < start_line {
+        return None;
+    }
+
+    let mut line = 1usize;
+    let mut start_byte = None;
+    let mut end_byte = None;
+    for (index, ch) in text.char_indices() {
+        if line == start_line && start_byte.is_none() {
+            start_byte = Some(index);
+        }
+        if line == end_line + 1 {
+            end_byte = Some(index);
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+        }
+    }
+
+    if line == start_line && start_byte.is_none() {
+        start_byte = Some(text.len());
+    }
+    if start_byte.is_some() && end_byte.is_none() {
+        if line >= end_line {
+            end_byte = Some(text.len());
+        }
+    }
+
+    start_byte.zip(end_byte)
+}
+
+fn replace_text_in_scope(
+    map: Option<&CodeMap>,
+    path: &Path,
+    full_text: &str,
+    find: &str,
+    replace: &str,
+    within_symbol: Option<&str>,
+    expected_matches: Option<usize>,
+) -> Result<String> {
+    let scope = text_scope_for_symbol(map, path, within_symbol, full_text)?;
+    let matches = scope.text.matches(find).count();
+
+    if let Some(expected) = expected_matches {
+        if expected == 0 {
+            bail!("replace_text expected_matches must be at least 1");
+        }
+        if matches != expected {
+            bail!(
+                "replace_text expected {} matches in {}{}, got {}",
+                expected,
+                path.display(),
+                within_symbol
+                    .map(|symbol| format!(" within symbol `{symbol}`"))
+                    .unwrap_or_default(),
+                matches
+            );
+        }
+    }
+
+    if matches == 0 {
+        bail!(
+            "replace_text locator not found in scope for {}",
+            path.display()
+        );
+    }
+
+    let replacement_count = expected_matches.unwrap_or(1);
+    let replaced_scope = scope.text.replacen(find, replace, replacement_count);
+    let mut output = String::with_capacity(full_text.len() + replaced_scope.len());
+    output.push_str(&full_text[..scope.start_byte]);
+    output.push_str(&replaced_scope);
+    output.push_str(&full_text[scope.end_byte..]);
+    Ok(output)
 }
 
 fn text_locator_in_text<'a>(text: &str, find: &'a str) -> Result<std::borrow::Cow<'a, str>> {
@@ -1952,6 +2241,11 @@ fn locator_confidence(op: &OpsEntry) -> &'static str {
             "high"
         }
         OpsEntry::ReplaceBetweenAnchors { expected_hash, .. } if expected_hash.is_some() => "high",
+        OpsEntry::ReplaceText {
+            within_symbol: Some(_),
+            expected_matches: Some(1),
+            ..
+        } => "high",
         OpsEntry::InsertBeforeText { .. }
         | OpsEntry::InsertAfterText { .. }
         | OpsEntry::ReplaceText { .. }
@@ -2038,6 +2332,11 @@ fn op_has_context(op: &OpsEntry) -> bool {
 
 fn risk_for_op(op: &OpsEntry) -> &'static str {
     match op {
+        OpsEntry::ReplaceText {
+            within_symbol: Some(_),
+            expected_matches: Some(_),
+            ..
+        } => "low",
         OpsEntry::CreateFile { .. }
         | OpsEntry::CreateDir { .. }
         | OpsEntry::ReplaceFile {
@@ -2323,6 +2622,37 @@ mod tests {
                 assert_eq!(content.as_deref(), Some("fn run() {}\n"));
             }
             other => panic!("expected replace_symbol, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn raw_ops_plan_parses_scoped_replace_text_block() {
+        let plan = read_plan_with_format(
+            None,
+            Some(
+                "ACTION: replace_text\nFILE: src/lib.rs\nWITHIN_SYMBOL: run\nEXPECTED_MATCHES: 1\nFIND:\nfont_size: 14.0,\nREPLACE:\nfont_size: theme.font.output_size,\nEND\n",
+            ),
+            OpsInputFormat::Raw,
+        )
+        .expect("raw ops plan should parse");
+
+        match &plan.ops[0] {
+            OpsEntry::ReplaceText {
+                find,
+                replace,
+                within_symbol,
+                expected_matches,
+                ..
+            } => {
+                assert_eq!(find, "font_size: 14.0,");
+                assert_eq!(
+                    replace.as_deref(),
+                    Some("font_size: theme.font.output_size,")
+                );
+                assert_eq!(within_symbol.as_deref(), Some("run"));
+                assert_eq!(*expected_matches, Some(1));
+            }
+            other => panic!("expected replace_text, got {other:?}"),
         }
     }
 

@@ -122,6 +122,9 @@ pub enum Command {
     OpsPreview,
     OpsCheck,
     OpsApply,
+    OpsRawPreview,
+    OpsRawCheck,
+    OpsRawApply,
     OpsSkeleton,
     OpsSchema,
     OpsSplit,
@@ -327,6 +330,9 @@ impl Cli {
                 "ops-preview" => command = Some(Command::OpsPreview),
                 "ops-check" => command = Some(Command::OpsCheck),
                 "ops-apply" => command = Some(Command::OpsApply),
+                "ops-raw-preview" => command = Some(Command::OpsRawPreview),
+                "ops-raw-check" => command = Some(Command::OpsRawCheck),
+                "ops-raw-apply" => command = Some(Command::OpsRawApply),
                 "ops-skeleton" => command = Some(Command::OpsSkeleton),
                 "ops-schema" => command = Some(Command::OpsSchema),
                 "ops-split" => command = Some(Command::OpsSplit),
@@ -497,6 +503,9 @@ impl Cli {
                         | Command::OpsPreview
                         | Command::OpsCheck
                         | Command::OpsApply
+                        | Command::OpsRawPreview
+                        | Command::OpsRawCheck
+                        | Command::OpsRawApply
                         | Command::OpsSkeleton
                         | Command::OpsSchema
                         | Command::OpsSplit
@@ -660,6 +669,9 @@ fn parse_command_name(value: &str) -> Option<Command> {
         "ops-preview" => Some(Command::OpsPreview),
         "ops-check" => Some(Command::OpsCheck),
         "ops-apply" => Some(Command::OpsApply),
+        "ops-raw-preview" => Some(Command::OpsRawPreview),
+        "ops-raw-check" => Some(Command::OpsRawCheck),
+        "ops-raw-apply" => Some(Command::OpsRawApply),
         "ops-skeleton" => Some(Command::OpsSkeleton),
         "ops-schema" => Some(Command::OpsSchema),
         "ops-split" => Some(Command::OpsSplit),
@@ -1073,6 +1085,37 @@ mod tests {
         assert_eq!(
             cli.options.from.as_deref(),
             Some(std::path::Path::new("plan.yml"))
+        );
+        assert!(cli.options.write);
+    }
+
+    #[test]
+    fn parses_ops_raw_check_from_stdin() {
+        let cli = Cli::parse([
+            "ops-raw-check".to_string(),
+            "--from".to_string(),
+            "-".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::OpsRawCheck);
+        assert_eq!(cli.options.from.as_deref(), Some(std::path::Path::new("-")));
+    }
+
+    #[test]
+    fn parses_ops_raw_apply_with_write() {
+        let cli = Cli::parse([
+            "ops-raw-apply".to_string(),
+            "--from".to_string(),
+            "ops.raw".to_string(),
+            "--write".to_string(),
+        ])
+        .expect("cli should parse");
+
+        assert_eq!(cli.command, Command::OpsRawApply);
+        assert_eq!(
+            cli.options.from.as_deref(),
+            Some(std::path::Path::new("ops.raw"))
         );
         assert!(cli.options.write);
     }

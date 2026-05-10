@@ -236,8 +236,8 @@ fn infer_domain_and_layer(path: &str) -> (String, String) {
         ("crates/engine/scene/", ("engine-scene", "engine")),
         ("crates/ui/core/", ("ui-core", "engine")),
         ("crates/scripting/", ("scripting", "scripting")),
-        ("mods/they-are-rotten/", ("they-are-rotten", "mod")),
         ("mods/playground-", ("playground", "mod")),
+        ("mods/", ("mod", "mod")),
         ("docs/", ("docs", "docs")),
     ];
 

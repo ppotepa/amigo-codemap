@@ -21,7 +21,9 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     println!("  trace: amigo-codemap trace <symbol-or-text> --limit 10");
     println!("  open-set: amigo-codemap open-set {query} --why --limit {limit}");
     println!("  symbols: amigo-codemap symbols {query} --limit {limit}");
-    println!("  slice/range: amigo-codemap signature <symbol>; amigo-codemap range-for-symbol <symbol>; amigo-codemap slice <file> --symbol <symbol>");
+    println!(
+        "  slice/range: amigo-codemap signature <symbol>; amigo-codemap range-for-symbol <symbol>; amigo-codemap slice <file> --symbol <symbol>"
+    );
     println!("3. Oczekiwany open-set:");
     print_scope(map, query, &tokens, limit);
     println!("4. Symbole:");
@@ -31,9 +33,13 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     println!("6. Text/config:");
     print_text(map, query, &tokens, limit);
     println!("7. Instrukcje per plik:");
-    println!("  use raw ops blocks with ACTION, FILE, SYMBOL/WITHIN_SYMBOL, FIND/REPLACE, CONTENT, END");
+    println!(
+        "  use raw ops blocks with ACTION, FILE, SYMBOL/WITHIN_SYMBOL, FIND/REPLACE, CONTENT, END"
+    );
     println!("8. Konkretne zmiany kodu:");
-    println!("  supported actions: CREATE FILE, REPLACE SYMBOL, INSERT BEFORE SYMBOL, INSERT AFTER SYMBOL, REPLACE TEXT, INSERT BEFORE TEXT, INSERT AFTER TEXT, REPLACE RANGE, DELETE RANGE, MODIFY ENUM, MODIFY MATCH");
+    println!(
+        "  supported actions: CREATE FILE, REPLACE SYMBOL, INSERT BEFORE SYMBOL, INSERT AFTER SYMBOL, REPLACE TEXT, INSERT BEFORE TEXT, INSERT AFTER TEXT, REPLACE RANGE, DELETE RANGE, MODIFY ENUM, MODIFY MATCH"
+    );
     println!("9. Testy i verify:");
     println!("  cargo build -p amigo-codemap");
     println!("  cargo test -p amigo-codemap");

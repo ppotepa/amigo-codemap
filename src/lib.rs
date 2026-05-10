@@ -80,6 +80,7 @@ pub fn run_cli() -> Result<()> {
         | Command::PatchCheck
         | Command::PatchApply
         | Command::OpsPreview
+        | Command::OpsRawPreview
         | Command::RiskIndex
         | Command::CommitFiles => {
             cli.options.level = 0;
@@ -108,6 +109,8 @@ pub fn run_cli() -> Result<()> {
         | Command::CallsiteCandidates
         | Command::TodoIndex
         | Command::OpsApply
+        | Command::OpsRawCheck
+        | Command::OpsRawApply
         | Command::OpsSkeleton
         | Command::OpsSchema
         | Command::OpsSplit
@@ -788,6 +791,58 @@ pub fn run_cli() -> Result<()> {
                 cli.options.from.as_deref(),
                 cli.options.yaml.as_deref(),
                 ops_input_format(cli.options.raw),
+                cli.options.write,
+                cli.options.backup,
+                cli.options.stop_on_error,
+                cli.options.strict,
+                cli.options.limit,
+                !cli.options.no_verbose,
+            )?;
+        }
+        Command::OpsRawPreview => {
+            report::file_ops::raw_ops::print_raw_ops_preview(
+                &cli.options.root,
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.limit,
+            )?;
+        }
+        Command::OpsRawCheck => {
+            let needs_map = report::file_ops::raw_ops::raw_plan_requires_codemap(
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.strict,
+            )?;
+            let map = if needs_map {
+                Some(load_report_map(&cli.options)?)
+            } else {
+                None
+            };
+            report::file_ops::raw_ops::print_raw_ops_check(
+                &cli.options.root,
+                map.as_ref(),
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.strict,
+                cli.options.limit,
+            )?;
+        }
+        Command::OpsRawApply => {
+            let needs_map = report::file_ops::raw_ops::raw_plan_requires_codemap(
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
+                cli.options.strict,
+            )?;
+            let map = if needs_map {
+                Some(load_report_map(&cli.options)?)
+            } else {
+                None
+            };
+            report::file_ops::raw_ops::print_raw_ops_apply(
+                &cli.options.root,
+                map.as_ref(),
+                cli.options.from.as_deref(),
+                cli.options.yaml.as_deref(),
                 cli.options.write,
                 cli.options.backup,
                 cli.options.stop_on_error,

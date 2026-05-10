@@ -398,6 +398,57 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["ops-check", "ops-skeleton", "patch-apply"],
     },
     CommandDescriptor {
+        name: "ops-raw-preview",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-raw-check", "ops-raw-apply", "ops-preview"],
+    },
+    CommandDescriptor {
+        name: "ops-raw-check",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-raw-preview", "ops-raw-apply", "ops-check"],
+    },
+    CommandDescriptor {
+        name: "ops-raw-apply",
+        category: "file-ops",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
+        ],
+        docs_paths: DOC_PATHS,
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+        ],
+        related: &["ops-raw-check", "ops-apply", "patch-apply"],
+    },
+    CommandDescriptor {
         name: "ops-skeleton",
         category: "file-ops",
         cli_paths: CLI_PATH,
@@ -778,6 +829,13 @@ mod tests {
     #[test]
     fn catalog_contains_ops_apply() {
         assert!(COMMANDS.iter().any(|command| command.name == "ops-apply"));
+    }
+
+    #[test]
+    fn catalog_contains_raw_ops_commands() {
+        for name in ["ops-raw-preview", "ops-raw-check", "ops-raw-apply"] {
+            assert!(COMMANDS.iter().any(|command| command.name == name));
+        }
     }
 
     #[test]

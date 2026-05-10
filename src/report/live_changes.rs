@@ -403,8 +403,6 @@ fn domain_bucket(path: &str) -> &'static str {
         "scene-editor"
     } else if path.contains("src-tauri") {
         "editor-backend"
-    } else if path.starts_with("mods/they-are-rotten") {
-        "they-are-rotten"
     } else if path.starts_with("mods/") {
         "mods"
     } else {

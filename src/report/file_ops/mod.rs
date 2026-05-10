@@ -25,6 +25,7 @@ pub mod patch_apply;
 pub mod patch_preview;
 pub mod range_for_lines;
 pub mod range_for_symbol;
+pub mod raw_ops;
 pub mod rename_plan;
 pub mod shim_check;
 pub mod slice;
