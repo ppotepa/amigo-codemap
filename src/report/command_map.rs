@@ -16,8 +16,13 @@ struct CommandDescriptor {
 
 const DOC_PATHS: &[&str] = &["crates/tools/amigo-codemap/README.md", "AMIGO_WORKFLOW.md"];
 
-const MAIN_PATH: &[&str] = &["crates/tools/amigo-codemap/src/main.rs"];
-const CLI_PATH: &[&str] = &["crates/tools/amigo-codemap/src/cli.rs"];
+const MAIN_PATH: &[&str] = &[
+    "crates/tools/amigo-codemap/src/main.rs",
+    "crates/tools/amigo-codemap/src/lib.rs",
+    "crates/tools/amigo-codemap/src/commands/dispatch.rs",
+    "crates/tools/amigo-codemap/src/commands/mod.rs",
+];
+const CLI_PATH: &[&str] = &["crates/tools/amigo-codemap/src/cli/mod.rs"];
 
 const COMMANDS: &[CommandDescriptor] = &[
     CommandDescriptor {
@@ -28,7 +33,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/command_map.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/command_map.rs",
         ],
         related: &["append-plan", "operations-summary", "docs"],
@@ -44,7 +49,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/snapshot_store.rs",
         ],
         related: &["scan", "watch", "status"],
@@ -57,7 +62,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/snapshot_store.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/snapshot_store.rs",
         ],
         related: &["refresh", "watch", "scan"],
@@ -70,7 +75,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/live_changes.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/live_changes.rs",
         ],
         related: &["changed", "commit-plan", "commit-summary", "status"],
@@ -83,7 +88,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/live_changes.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/live_changes.rs",
         ],
         related: &["changes", "commit-files", "commit-summary", "verify-plan"],
@@ -95,7 +100,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/verify_plan.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["changes", "commit-plan", "ops-verify"],
     },
     CommandDescriptor {
@@ -108,7 +113,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/report/taxonomy_report.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["anchors", "anchor-check", "command-map"],
     },
     CommandDescriptor {
@@ -121,7 +126,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/scan/codemap_tags.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["taxonomy", "anchor-check", "trace", "open-set"],
     },
     CommandDescriptor {
@@ -134,7 +139,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/taxonomy.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["anchors", "taxonomy", "trace"],
     },
     CommandDescriptor {
@@ -145,7 +150,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/symbols.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/symbols.rs",
         ],
         related: &["where", "signature", "trace"],
@@ -158,7 +163,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/where_symbol.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/where_symbol.rs",
         ],
         related: &["symbols", "signature", "trace", "open-set"],
@@ -171,7 +176,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/signature.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/signature.rs",
         ],
         related: &["symbols", "where"],
@@ -184,7 +189,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/trace.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/trace.rs",
         ],
         related: &["where", "signature", "open-set", "impact"],
@@ -200,7 +205,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/append_plan.rs",
         ],
         related: &["copy-plan", "open-set", "rename-plan", "slice"],
@@ -216,7 +221,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/copy_plan.rs",
         ],
         related: &["append-plan", "open-set", "slice"],
@@ -232,7 +237,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
         ],
         related: &["patch-apply", "patch-preview", "append-plan"],
@@ -248,7 +253,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/patch_apply.rs",
         ],
         related: &["patch-check", "patch-preview", "append-plan"],
@@ -264,7 +269,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/open_set.rs",
         ],
         related: &["append-plan", "slice", "impact"],
@@ -280,7 +285,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/slice.rs",
         ],
         related: &["open-set", "append-plan", "impact"],
@@ -296,7 +301,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/delete_plan.rs",
         ],
         related: &["file-move-plan", "orphan-files", "shim-check"],
@@ -312,7 +317,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/file_move_plan.rs",
         ],
         related: &["import-fix-plan", "delete-plan", "rename-plan"],
@@ -328,7 +333,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/rename_plan.rs",
         ],
         related: &["append-plan", "import-fix-plan", "file-move-plan"],
@@ -344,7 +349,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/import_fix_plan.rs",
         ],
         related: &["file-move-plan", "delete-plan", "fallout"],
@@ -355,13 +360,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         cli_paths: CLI_PATH,
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-check", "ops-apply", "patch-check"],
     },
@@ -371,13 +376,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         cli_paths: CLI_PATH,
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-preview", "ops-apply", "patch-check"],
     },
@@ -387,13 +392,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         cli_paths: CLI_PATH,
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-check", "ops-skeleton", "patch-apply"],
     },
@@ -404,13 +409,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
             "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-raw-check", "ops-raw-apply", "ops-preview"],
     },
@@ -421,13 +426,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
             "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-raw-preview", "ops-raw-apply", "ops-check"],
     },
@@ -438,13 +443,13 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &[
             "crates/tools/amigo-codemap/src/report/file_ops/raw_ops.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
-            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
+            "crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs",
         ],
         related: &["ops-raw-check", "ops-apply", "patch-apply"],
     },
@@ -459,7 +464,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/ops_skeleton.rs",
         ],
         related: &[
@@ -481,7 +486,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/ops_schema.rs",
         ],
         related: &["ops-skeleton", "ops-check", "ops-preview"],
@@ -496,7 +501,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["ops-preview", "ops-summary", "ops-apply"],
     },
     CommandDescriptor {
@@ -509,7 +514,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["ops-check", "ops-apply", "verify-plan"],
     },
     CommandDescriptor {
@@ -522,7 +527,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["ops-preview", "ops-verify", "operations-summary"],
     },
     CommandDescriptor {
@@ -536,7 +541,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/range_for_symbol.rs",
         ],
         related: &["signature", "slice", "ops-skeleton", "ops-check"],
@@ -552,7 +557,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/file_ops/range_for_lines.rs",
         ],
         related: &["ops-check", "ops-apply", "range-for-symbol"],
@@ -567,7 +572,7 @@ const COMMANDS: &[CommandDescriptor] = &[
             "crates/tools/amigo-codemap/src/report/file_ops/mod.rs",
         ],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["anchors", "anchor-check", "ops-check"],
     },
     CommandDescriptor {
@@ -577,7 +582,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/change_plan.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["trace", "open-set", "impact", "verify-plan"],
     },
     CommandDescriptor {
@@ -587,7 +592,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/explain_file.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["neighbors", "slice"],
     },
     CommandDescriptor {
@@ -597,7 +602,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/neighbors.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["explain-file", "impact", "open-set"],
     },
     CommandDescriptor {
@@ -607,7 +612,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/api_surface.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["signature", "where"],
     },
     CommandDescriptor {
@@ -617,7 +622,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/component_graph.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["trace", "open-set", "neighbors"],
     },
     CommandDescriptor {
@@ -627,7 +632,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/tauri_graph.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["trace", "impact", "api-surface"],
     },
     CommandDescriptor {
@@ -637,7 +642,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/callsite_candidates.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["impact", "where", "trace"],
     },
     CommandDescriptor {
@@ -647,7 +652,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/todo_index.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["risk-index", "stale"],
     },
     CommandDescriptor {
@@ -657,7 +662,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         dispatch_paths: MAIN_PATH,
         implementation_paths: &["crates/tools/amigo-codemap/src/report/risk_index.rs"],
         docs_paths: DOC_PATHS,
-        test_paths: &["crates/tools/amigo-codemap/src/cli.rs"],
+        test_paths: &["crates/tools/amigo-codemap/src/cli/mod.rs"],
         related: &["todo-index", "large-files", "commit-files"],
     },
     CommandDescriptor {
@@ -665,10 +670,17 @@ const COMMANDS: &[CommandDescriptor] = &[
         category: "quality",
         cli_paths: CLI_PATH,
         dispatch_paths: MAIN_PATH,
-        implementation_paths: &["crates/tools/amigo-codemap/src/report/code_smells.rs"],
+        implementation_paths: &[
+            "crates/tools/amigo-codemap/src/report/code_smells.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells/model.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells/scoring.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells/scan.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells/classify.rs",
+            "crates/tools/amigo-codemap/src/report/code_smells/output.rs",
+        ],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/code_smells.rs",
         ],
         related: &["risk-index", "large-files", "open-set", "slice"],
@@ -681,7 +693,7 @@ const COMMANDS: &[CommandDescriptor] = &[
         implementation_paths: &["crates/tools/amigo-codemap/src/report/summary.rs"],
         docs_paths: DOC_PATHS,
         test_paths: &[
-            "crates/tools/amigo-codemap/src/cli.rs",
+            "crates/tools/amigo-codemap/src/cli/mod.rs",
             "crates/tools/amigo-codemap/src/report/summary.rs",
         ],
         related: &["commit-summary", "command-map", "docs"],

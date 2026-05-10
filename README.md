@@ -533,15 +533,15 @@ Print the Refactor Radar / Code Smell Index. This is a ranking for likely techni
 ```powershell
 & $cm smells --top 30 --why
 & $cm smells --changed --why
-& $cm smells --file crates/tools/amigo-codemap/src/report/file_ops/ops_plan.rs --why
+& $cm smells --file crates/tools/amigo-codemap/src/report/file_ops/ops_plan/mod.rs --why
 & $cm smells --group domain --top 30
 & $cm smells --json
 ```
 
-Use `--report` for a full report instead of a top-N list. Use shell redirection when the report should be saved.
+Use `--report` for a full report instead of a top-N list. Use `--report-file` to save directly.
 
 ```powershell
-& $cm smells --report --file-lines 500 --min-score 30 --why > .amigo\code-smells-report.txt
+& $cm smells --report --report-file .amigo/code-smells-report.json --file-lines 500 --min-score 30 --why
 ```
 
 Useful options:
@@ -558,7 +558,8 @@ Useful options:
 --include-generated
 --file <path>
 --report
-```
+--report-file <path>
+``` 
 
 `--file-lines N` controls file-size smells:
 

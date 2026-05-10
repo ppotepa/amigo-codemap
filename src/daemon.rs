@@ -425,6 +425,7 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         min_score: 0,
         report: false,
         file_lines: 450,
+        report_file: None,
         verify_args: Vec::new(),
         changed_only: false,
         patterns: Vec::new(),
