@@ -5,7 +5,7 @@ scope:
 findings:
   recommended files: 2
   read first:
-    crates/apps/amigo-editor/src/app/selectionTypes.ts [score 151, definition, refs:1, selection]
+    crates/apps/amigo-editor/src/app/selectionTypes.ts [score 211, definition, refs:1, selection, task:implement-definition]
     crates/apps/amigo-editor/src/app/store/editorState.ts [score 56, refs:1, store boundary]
   skip:
     README.md

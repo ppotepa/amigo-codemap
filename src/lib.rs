@@ -7,6 +7,7 @@ mod daemon_protocol;
 pub use amigo_symbol_explorer::git;
 pub use amigo_symbol_explorer::model;
 mod output;
+mod incremental;
 pub use amigo_symbol_explorer::query;
 mod report;
 mod scan;

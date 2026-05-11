@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 
 use super::command_names::parse_command_name;
-use super::{Cli, Options};
+use super::{Cli, DaemonMode, Options};
 use crate::cli::Command;
 
 pub(super) fn parse<I>(args: I) -> Result<Cli>
@@ -43,6 +43,12 @@ where
     let mut context_radius = 3usize;
     let mut top = 20usize;
     let mut with_split_hints = false;
+    let mut timings = false;
+    let mut progress = false;
+    let mut diagnostics = false;
+    let mut slow_file_threshold_ms = 100u64;
+    let mut max_file_size_bytes = 1_500_000u64;
+    let mut max_files = 20_000usize;
     let mut save = false;
     let mut status = false;
     let mut write = false;
@@ -62,6 +68,9 @@ where
     let mut include_tests = false;
     let mut include_generated = false;
     let mut warnings = false;
+    let mut expect_present = Vec::new();
+    let mut expect_absent = Vec::new();
+    let mut daemon_mode = DaemonMode::Auto;
 
     let args = args.into_iter().collect::<Vec<_>>();
     let mut index = 0;
@@ -75,6 +84,7 @@ where
                     | Command::Where
                     | Command::Signature
                     | Command::Trace
+                    | Command::TraceField
                     | Command::ChangePlan
                     | Command::ExplainFile
                     | Command::Neighbors
@@ -143,6 +153,7 @@ where
             "where" => command = Some(Command::Where),
             "signature" => command = Some(Command::Signature),
             "trace" => command = Some(Command::Trace),
+            "trace-field" => command = Some(Command::TraceField),
             "change-plan" => command = Some(Command::ChangePlan),
             "explain-file" => command = Some(Command::ExplainFile),
             "neighbors" => command = Some(Command::Neighbors),
@@ -333,6 +344,27 @@ where
                 )?));
             }
             "--with-split-hints" => with_split_hints = true,
+            "--timings" => timings = true,
+            "--progress" => progress = true,
+            "--print" => {
+                progress = true;
+                diagnostics = true;
+            }
+            "--diagnostics" => diagnostics = true,
+            "--slow-file-threshold-ms" => {
+                index += 1;
+                slow_file_threshold_ms =
+                    required_value(&args, index, "--slow-file-threshold-ms")?.parse::<u64>()?;
+            }
+            "--max-file-size" => {
+                index += 1;
+                max_file_size_bytes =
+                    required_value(&args, index, "--max-file-size")?.parse::<u64>()?;
+            }
+            "--max-files" => {
+                index += 1;
+                max_files = required_value(&args, index, "--max-files")?.parse::<usize>()?;
+            }
             "--save" => save = true,
             "--status" => status = true,
             "--write" => write = true,
@@ -352,6 +384,24 @@ where
             "--include-tests" => include_tests = true,
             "--include-generated" => include_generated = true,
             "--warnings" => warnings = true,
+            "--daemon" => {
+                index += 1;
+                daemon_mode = match required_value(&args, index, "--daemon")?.to_ascii_lowercase().as_str() {
+                    "auto" => DaemonMode::Auto,
+                    "require" => DaemonMode::Require,
+                    "disabled" => DaemonMode::Disabled,
+                    other => bail!("unknown --daemon mode `{other}`; expected auto, require, or disabled"),
+                };
+            }
+            "--no-daemon" => daemon_mode = DaemonMode::Disabled,
+            "--expect-present" => {
+                index += 1;
+                expect_present.push(required_value(&args, index, "--expect-present")?);
+            }
+            "--expect-absent" => {
+                index += 1;
+                expect_absent.push(required_value(&args, index, "--expect-absent")?);
+            }
             unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
             value => match command {
                 Some(
@@ -360,6 +410,7 @@ where
                     | Command::Where
                     | Command::Signature
                     | Command::Trace
+                    | Command::TraceField
                     | Command::ChangePlan
                     | Command::ExplainFile
                     | Command::Neighbors
@@ -458,8 +509,14 @@ where
             radius,
             context_radius,
             top,
-            with_split_hints,
-            save,
+        with_split_hints,
+        timings,
+        progress,
+        diagnostics,
+        slow_file_threshold_ms,
+        max_file_size_bytes,
+        max_files,
+        save,
             status,
             write,
             strict,
@@ -478,6 +535,9 @@ where
             include_tests,
             include_generated,
             warnings,
+            expect_present,
+            expect_absent,
+            daemon_mode,
         },
     })
 }

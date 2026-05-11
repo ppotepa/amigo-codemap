@@ -141,6 +141,7 @@ fn build_open_set_report(
             .or_insert((score, reasons));
     }
 
+    let task_kind = task.unwrap_or("read").to_ascii_lowercase();
     let rankings = rank_open_set_items(
         &definition_paths,
         &changed_paths,
@@ -149,6 +150,7 @@ fn build_open_set_report(
         &anchor_scores,
         &token_scores,
         editor_def,
+        &task_kind,
     );
 
     let mut ranked: Vec<_> = rankings.into_iter().collect();
@@ -270,6 +272,7 @@ fn rank_open_set_items(
     anchor_scores: &BTreeMap<String, (i32, Vec<String>)>,
     token_scores: &BTreeMap<String, (i32, Vec<String>)>,
     editor_def: bool,
+    task: &str,
 ) -> BTreeMap<String, (i32, Vec<String>)> {
     let mut scores = BTreeMap::<String, (i32, Vec<String>)>::new();
 
@@ -332,6 +335,56 @@ fn rank_open_set_items(
         if is_low_value {
             score -= 60;
             reasons.push("low-value file".to_string());
+        }
+
+        match task {
+            "trace" => {
+                if is_definition {
+                    score += 80;
+                    reasons.push("task:trace-definition".to_string());
+                }
+                if *refs > 0 {
+                    score += (std::cmp::min(*refs, 8) * 8) as i32;
+                    reasons.push("task:trace-refs".to_string());
+                }
+                if is_test {
+                    score -= 25;
+                    reasons.push("task:trace-deprioritize-test".to_string());
+                }
+            }
+            "implement" | "migrate" | "refactor" => {
+                if is_definition {
+                    score += 60;
+                    reasons.push("task:implement-definition".to_string());
+                }
+                if is_changed {
+                    score += 50;
+                    reasons.push("task:implement-changed".to_string());
+                }
+            }
+            "test" => {
+                if is_test {
+                    score += 80;
+                    reasons.push("task:test".to_string());
+                }
+            }
+            "cleanup" => {
+                if is_changed {
+                    score += 60;
+                    reasons.push("task:cleanup-changed".to_string());
+                }
+            }
+            "verify" => {
+                if is_changed {
+                    score += 100;
+                    reasons.push("task:verify-changed".to_string());
+                }
+                if is_test {
+                    score += 35;
+                    reasons.push("task:verify-test".to_string());
+                }
+            }
+            _ => {}
         }
 
         scores.insert(path.clone(), (score, reasons));
@@ -497,6 +550,7 @@ mod tests {
             &BTreeMap::new(),
             &BTreeMap::new(),
             true,
+            "read",
         );
         let first = ranked
             .get("crates/apps/amigo-editor/src/app/store/main.ts")
@@ -528,6 +582,7 @@ mod tests {
             &BTreeMap::new(),
             &BTreeMap::new(),
             true,
+            "read",
         );
         assert!(
             !ranked.contains_key(

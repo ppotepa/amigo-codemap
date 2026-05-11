@@ -36,6 +36,7 @@ pub mod tauri_graph;
 pub mod taxonomy_report;
 pub mod todo_index;
 pub mod trace;
+pub mod trace_field;
 pub mod verify_plan;
 pub mod where_symbol;
 

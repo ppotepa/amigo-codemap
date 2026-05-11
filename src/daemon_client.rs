@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 
 use crate::cli::Options;
+use crate::cli::DaemonMode;
 use crate::daemon_protocol::{
     DEFAULT_DAEMON_ADDR, DaemonMapOptions, DaemonRequest, DaemonResponse,
 };
@@ -12,7 +13,7 @@ use crate::model::CodeMap;
 
 // @codemap P1 codemap-daemon-client-fallback
 pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
-    if options.no_cache || daemon_is_disabled() {
+    if options.no_cache || daemon_is_disabled(options) {
         return Ok(None);
     }
 
@@ -38,17 +39,21 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
             }
             Ok(None)
         }
-        Err(error) => {
-            if verbose_daemon_client() {
-                eprintln!("codemap daemon unavailable; falling back to local snapshot: {error}");
+        Err(error) => match options.daemon_mode {
+            DaemonMode::Require => Err(error),
+            _ => {
+                if verbose_daemon_client() {
+                    eprintln!("codemap daemon unavailable; falling back to local snapshot: {error}");
+                }
+                Ok(None)
             }
-            Ok(None)
-        }
+        },
     }
 }
 
-fn daemon_is_disabled() -> bool {
-    std::env::var("AMIGO_CODEMAP_NO_DAEMON")
+fn daemon_is_disabled(options: &Options) -> bool {
+    matches!(options.daemon_mode, DaemonMode::Disabled)
+        || std::env::var("AMIGO_CODEMAP_NO_DAEMON")
         .is_ok_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
 }
 

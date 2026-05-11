@@ -107,10 +107,13 @@ fn parse_raw_ops_plan(text: &str) -> Result<OpsPlan> {
             "WITHIN_SYMBOL" => current.within_symbol = Some(value),
             "FIND" => current.find = Some(value),
             "REPLACE" => current.replace = Some(value),
+            "TEXT" => current.text = Some(value),
             "START_LINE" => current.start_line = Some(value.parse()?),
             "END_LINE" => current.end_line = Some(value.parse()?),
             "EXPECTED_HASH" => current.expected_hash = Some(value),
             "EXPECTED_MATCHES" => current.expected_matches = Some(value.parse()?),
+            "SCOPE" => current.scope = Some(value),
+            "CHANGED_ONLY" => current.changed_only = value.parse::<bool>()?,
             other => bail!("unknown raw ops field `{other}`"),
         }
     }
@@ -160,11 +163,14 @@ struct RawOpsBlock {
     within_symbol: Option<String>,
     find: Option<String>,
     replace: Option<String>,
+    text: Option<String>,
     content: String,
     start_line: Option<usize>,
     end_line: Option<usize>,
     expected_hash: Option<String>,
     expected_matches: Option<usize>,
+    scope: Option<String>,
+    changed_only: bool,
 }
 
 impl RawOpsBlock {
@@ -309,6 +315,23 @@ impl RawOpsBlock {
                 context_before: None,
                 context_after: None,
             }),
+            "DELETE SYMBOL IF EXISTS" => Ok(OpsEntry::DeleteSymbolIfExists {
+                id: None,
+                path,
+                symbol: required_raw_field(index, "SYMBOL", self.symbol)?,
+                expected_hash: self.expected_hash,
+            }),
+            "ASSERT SYMBOL ABSENT" => Ok(OpsEntry::AssertSymbolAbsent {
+                id: None,
+                path: self.file.map(PathBuf::from),
+                symbol: required_raw_field(index, "SYMBOL", self.symbol)?,
+            }),
+            "ASSERT TEXT ABSENT" => Ok(OpsEntry::AssertTextAbsent {
+                id: None,
+                path: self.file.map(PathBuf::from),
+                text: required_raw_field(index, "TEXT", self.text.or(self.find).or(self.replace))?,
+                changed_only: self.changed_only,
+            }),
             "MODIFY ENUM" | "MODIFY MATCH" => Ok(OpsEntry::ReplaceText {
                 id: None,
                 path,
@@ -316,6 +339,14 @@ impl RawOpsBlock {
                 replace: self.replace.or(content),
                 content_from: None,
                 within_symbol: self.within_symbol,
+                expected_matches: self.expected_matches,
+            }),
+            "REPLACE FIELD ACCESS" => Ok(OpsEntry::ReplaceFieldAccess {
+                id: None,
+                path: self.file.map(PathBuf::from),
+                find: required_raw_field(index, "FIND", self.find)?,
+                replace: required_raw_field(index, "REPLACE", self.replace.or(content))?,
+                scope: self.scope,
                 expected_matches: self.expected_matches,
             }),
             _ => bail!("unsupported raw ops ACTION `{action}` in block {index}"),

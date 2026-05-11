@@ -236,6 +236,14 @@ pub(super) fn apply_op(
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             super::super::super::symbol_ops::delete_symbol(root, map, path, symbol, write)?;
         }
+        OpsEntry::DeleteSymbolIfExists { path, symbol, .. } => {
+            let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
+            match super::super::super::symbol_ops::delete_symbol(root, map, path, symbol, write) {
+                Ok(()) => {}
+                Err(error) if error.to_string().contains("symbol not found") => {}
+                Err(error) => return Err(error),
+            }
+        }
         OpsEntry::InsertBeforeSymbol {
             path,
             symbol,
@@ -273,6 +281,28 @@ pub(super) fn apply_op(
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::super::super::symbol_ops::replace_method_body(
                 root, map, path, symbol, &content, write,
+            )?;
+        }
+        OpsEntry::AssertSymbolAbsent { .. } | OpsEntry::AssertTextAbsent { .. } => {}
+        OpsEntry::ReplaceFieldAccess {
+            path,
+            find,
+            replace,
+            scope,
+            expected_matches,
+            ..
+        } => {
+            let map = map.ok_or_else(|| anyhow!("field access operation requires codemap"))?;
+            let path = path.as_ref().map(|path| path.as_path());
+            super::super::super::symbol_ops::replace_field_access(
+                root,
+                map,
+                path,
+                find,
+                replace,
+                scope.as_deref(),
+                *expected_matches,
+                write,
             )?;
         }
     }

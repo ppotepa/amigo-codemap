@@ -96,6 +96,22 @@ The CLI tries to use the daemon automatically.
 
 If the daemon is not running, the CLI falls back to the existing local snapshot/cache flow.
 
+For day-to-day use, prefer the shortest command that answers the question:
+
+```powershell
+.\target\debug\amigo-codemap.exe brief
+.\target\debug\amigo-codemap.exe status
+.\target\debug\amigo-codemap.exe trace EditorTarget --limit 20
+.\target\debug\amigo-codemap.exe open-set EditorTarget --why --limit 10
+```
+
+Use `refresh --print` only when diagnosing scan speed or refresh behavior:
+
+```powershell
+.\target\debug\amigo-codemap.exe refresh --level 1 --print
+.\target\debug\amigo-codemap.exe refresh --level 1 --print --timings
+```
+
 ## Stop daemon
 
 ```powershell
@@ -209,6 +225,7 @@ Use CLI normally in another terminal:
 
 ```powershell
 .\target\debug\amigo-codemap.exe brief
+.\target\debug\amigo-codemap.exe status
 .\target\debug\amigo-codemap.exe trace EditorTarget --limit 20
 .\target\debug\amigo-codemap.exe change-plan "right dock target context"
 ```

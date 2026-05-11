@@ -66,6 +66,15 @@ fn print_symbol_range(symbol: &SymbolEntry, file: Option<&FileEntry>) {
         println!("    symbol: {}", symbol.name);
         println!("    content: |");
         println!("      # replacement content");
+        println!();
+        println!("raw ops hint:");
+        println!("ACTION: REPLACE SYMBOL");
+        println!("FILE: {}", slash_path(&file.path));
+        println!("SYMBOL: {}", symbol.name);
+        println!("EXPECTED_HASH: {}", file.hash.as_str());
+        println!("CONTENT:");
+        println!("# replacement content");
+        println!("END");
     }
 }
 

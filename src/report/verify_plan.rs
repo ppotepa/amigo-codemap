@@ -16,6 +16,8 @@ pub struct VerifyPlan {
     pub required: BTreeSet<String>,
     pub optional: BTreeSet<String>,
     pub skip: BTreeSet<String>,
+    pub present: BTreeSet<String>,
+    pub absent: BTreeSet<String>,
     pub reason: Vec<String>,
 }
 
@@ -70,6 +72,11 @@ pub fn plan_for_paths(paths: impl IntoIterator<Item = std::path::PathBuf>) -> Ve
     plan
 }
 
+pub fn apply_expectations(plan: &mut VerifyPlan, present: &[String], absent: &[String]) {
+    plan.present.extend(present.iter().cloned());
+    plan.absent.extend(absent.iter().cloned());
+}
+
 fn engine_test_crate(path: &Path) -> Option<&'static str> {
     let text = slash_path(path);
     if text.starts_with("crates/engine/scene/") {
@@ -118,6 +125,8 @@ pub fn render_verify_plan(plan: &VerifyPlan) -> String {
     write_set(&mut output, "required", &plan.required);
     write_set(&mut output, "optional", &plan.optional);
     write_set(&mut output, "skip", &plan.skip);
+    write_set(&mut output, "present", &plan.present);
+    write_set(&mut output, "absent", &plan.absent);
     writeln!(output, "reason:").unwrap();
     for reason in &plan.reason {
         writeln!(output, "  {reason}").unwrap();

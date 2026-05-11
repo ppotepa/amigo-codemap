@@ -107,24 +107,63 @@ pub fn replace_method_body(
     )
 }
 
-fn resolve_symbol<'a>(map: &'a CodeMap, path: &Path, symbol_name: &str) -> Result<&'a SymbolEntry> {
-    let path_text = normalize(path);
-    let file = map
-        .files
-        .iter()
-        .find(|file| normalize(&file.path) == path_text)
-        .ok_or_else(|| anyhow::anyhow!("file not found in codemap: {}", path.display()))?;
-    let matches = map
-        .symbols
-        .iter()
-        .filter(|symbol| symbol.file_id == file.id && symbol.name == symbol_name)
-        .collect::<Vec<_>>();
+pub fn replace_field_access(
+    root: &Path,
+    map: &CodeMap,
+    path: Option<&Path>,
+    find: &str,
+    replace: &str,
+    scope: Option<&str>,
+    expected_matches: Option<usize>,
+    write: bool,
+) -> Result<()> {
+    let files: Vec<&Path> = if let Some(path) = path {
+        vec![path]
+    } else if scope == Some("changed") {
+        map.git.changed.iter().map(|change| change.path.as_path()).collect()
+    } else {
+        map.files.iter().map(|file| file.path.as_path()).collect()
+    };
 
-    match matches.as_slice() {
-        [symbol] => Ok(symbol),
-        [] => bail!("symbol not found: {} in {}", symbol_name, path.display()),
-        _ => bail!("symbol is ambiguous: {} in {}", symbol_name, path.display()),
+    let mut matches = 0usize;
+    for file_path in &files {
+        let full = root.join(file_path);
+        let text = fs::read_to_string(&full)?;
+        matches += text.matches(find).count();
     }
+
+    if let Some(expected) = expected_matches {
+        if matches != expected {
+            bail!(
+                "replace_field_access expected {} matches for {}, got {}",
+                expected,
+                find,
+                matches
+            );
+        }
+    } else if matches == 0 {
+        bail!("replace_field_access locator not found: {find}");
+    }
+
+    for file_path in files {
+        let full = root.join(file_path);
+        let text = fs::read_to_string(&full)?;
+        if !text.contains(find) {
+            continue;
+        }
+        let next = text.replacen(find, replace, expected_matches.unwrap_or(1));
+        if write {
+            fs::write(full, next)?;
+        } else {
+            println!("{next}");
+        }
+    }
+
+    Ok(())
+}
+
+fn resolve_symbol<'a>(map: &'a CodeMap, path: &Path, symbol_name: &str) -> Result<&'a SymbolEntry> {
+    Ok(super::symbol_locator::resolve_symbol_in_file(map, path, symbol_name)?.symbol)
 }
 
 fn replace_line_range(
@@ -195,6 +234,6 @@ fn insert_at_line(root: &Path, path: &Path, line: usize, content: &str, write: b
     Ok(())
 }
 
-fn normalize(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
-}
+
+
+

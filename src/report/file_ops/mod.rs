@@ -29,6 +29,7 @@ pub mod raw_ops;
 pub mod rename_plan;
 pub mod shim_check;
 pub mod slice;
+pub mod symbol_locator;
 pub mod symbol_ops;
 pub mod text_check;
 pub mod workset;

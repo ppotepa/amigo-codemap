@@ -11,6 +11,7 @@ pub enum Command {
     Where,
     Signature,
     Trace,
+    TraceField,
     ChangePlan,
     ExplainFile,
     Neighbors,

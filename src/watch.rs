@@ -1,11 +1,12 @@
 use std::sync::mpsc;
+use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::cli::Options;
-use crate::{output, scan, snapshot_store};
+use crate::{incremental, snapshot_store};
 
 const DEBOUNCE: Duration = Duration::from_millis(700);
 const MIN_WRITE_INTERVAL: Duration = Duration::from_secs(1);
@@ -21,9 +22,8 @@ pub fn watch_project(options: Options) -> Result<()> {
     watcher.watch(&options.root, RecursiveMode::Recursive)?;
 
     let initial_started = Instant::now();
-    let initial = scan::scan_project(&options)?;
-    output::write_codemap(&options, &initial)?;
-    snapshot_store::write_snapshot(&options, &initial)?;
+    let mut index = incremental::WorkspaceIndex::from_full_scan(&options)?;
+    incremental::write_outputs(&options, &index.map)?;
     println!(
         "watching {} -> {} and {} ({:?})",
         options.root.display(),
@@ -32,7 +32,7 @@ pub fn watch_project(options: Options) -> Result<()> {
         initial_started.elapsed()
     );
 
-    let mut pending = false;
+    let mut pending = BTreeSet::<std::path::PathBuf>::new();
     let mut last_event = Instant::now();
     let mut last_write = Instant::now() - MIN_WRITE_INTERVAL;
 
@@ -47,7 +47,7 @@ pub fn watch_project(options: Options) -> Result<()> {
                     continue;
                 }
                 let _ = snapshot_store::mark_dirty(&options.root);
-                pending = true;
+                pending.extend(event.paths.into_iter());
                 last_event = Instant::now();
             }
             Ok(Err(error)) => return Err(anyhow!("watch error: {error}")),
@@ -57,12 +57,14 @@ pub fn watch_project(options: Options) -> Result<()> {
             }
         }
 
-        if pending && last_event.elapsed() >= DEBOUNCE && last_write.elapsed() >= MIN_WRITE_INTERVAL
+        if !pending.is_empty()
+            && last_event.elapsed() >= DEBOUNCE
+            && last_write.elapsed() >= MIN_WRITE_INTERVAL
         {
             let started = Instant::now();
-            let map = scan::scan_project(&options)?;
-            let wrote = output::write_codemap(&options, &map)?;
-            snapshot_store::write_snapshot(&options, &map)?;
+            let touched = pending.iter().cloned().collect::<Vec<_>>();
+            index.refresh_touched(&options, &touched)?;
+            let wrote = incremental::write_outputs(&options, &index.map)?;
             if wrote {
                 println!(
                     "updated {} and {} in {:?}",
@@ -77,7 +79,7 @@ pub fn watch_project(options: Options) -> Result<()> {
                     started.elapsed()
                 );
             }
-            pending = false;
+            pending.clear();
             last_write = Instant::now();
         }
     }

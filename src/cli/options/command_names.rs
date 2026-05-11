@@ -13,6 +13,7 @@ pub(super) fn parse_command_name(value: &str) -> Option<Command> {
         "where" => Some(Command::Where),
         "signature" => Some(Command::Signature),
         "trace" => Some(Command::Trace),
+        "trace-field" => Some(Command::TraceField),
         "change-plan" => Some(Command::ChangePlan),
         "explain-file" => Some(Command::ExplainFile),
         "neighbors" => Some(Command::Neighbors),

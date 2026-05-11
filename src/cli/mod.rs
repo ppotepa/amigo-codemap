@@ -4,4 +4,4 @@ mod options;
 
 pub use command::Command;
 pub use help::print_help;
-pub use options::{Cli, Options};
+pub use options::{Cli, DaemonMode, Options};

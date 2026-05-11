@@ -103,9 +103,13 @@ fn kind(op: &OpsEntry) -> &'static str {
         OpsEntry::ReplaceBetweenAnchors { .. } => "replace_between_anchors",
         OpsEntry::ReplaceSymbol { .. } => "replace_symbol",
         OpsEntry::DeleteSymbol { .. } => "delete_symbol",
+        OpsEntry::DeleteSymbolIfExists { .. } => "delete_symbol_if_exists",
+        OpsEntry::AssertSymbolAbsent { .. } => "assert_symbol_absent",
+        OpsEntry::AssertTextAbsent { .. } => "assert_text_absent",
         OpsEntry::InsertBeforeSymbol { .. } => "insert_before_symbol",
         OpsEntry::InsertAfterSymbol { .. } => "insert_after_symbol",
         OpsEntry::ReplaceMethodBody { .. } => "replace_method_body",
+        OpsEntry::ReplaceFieldAccess { .. } => "replace_field_access",
         OpsEntry::ReplaceRange { .. } => "replace_range",
         OpsEntry::DeleteRange { .. } => "delete_range",
         OpsEntry::AppendToFile { .. } => "append_to_file",
@@ -130,6 +134,7 @@ fn path(op: &OpsEntry) -> String {
         | OpsEntry::ReplaceBetweenAnchors { path, .. }
         | OpsEntry::ReplaceSymbol { path, .. }
         | OpsEntry::DeleteSymbol { path, .. }
+        | OpsEntry::DeleteSymbolIfExists { path, .. }
         | OpsEntry::InsertBeforeSymbol { path, .. }
         | OpsEntry::InsertAfterSymbol { path, .. }
         | OpsEntry::ReplaceMethodBody { path, .. }
@@ -138,6 +143,13 @@ fn path(op: &OpsEntry) -> String {
         | OpsEntry::AppendToFile { path, .. }
         | OpsEntry::CreateDir { path, .. }
         | OpsEntry::DeleteDir { path, .. } => path.to_string_lossy().replace('\\', "/"),
+        OpsEntry::AssertSymbolAbsent { path, .. } | OpsEntry::AssertTextAbsent { path, .. } => {
+            path.as_ref()
+                .map(|path| path.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_else(|| "-".to_string())
+        }
+        OpsEntry::ReplaceFieldAccess { path: None, .. } => "-".to_string(),
+        OpsEntry::ReplaceFieldAccess { path: Some(path), .. } => path.to_string_lossy().replace('\\', "/"),
         OpsEntry::CopyFile { from, to, .. }
         | OpsEntry::MoveFile { from, to, .. }
         | OpsEntry::RenameFile { from, to, .. } => format!(

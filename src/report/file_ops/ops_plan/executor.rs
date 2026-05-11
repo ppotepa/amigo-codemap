@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::{Result, bail};
 
 use crate::model::CodeMap;
+use crate::snapshot_store;
 
 use super::OpsPlan;
 use super::content::op_content_from_paths;
@@ -93,6 +94,12 @@ pub(super) fn print_ops_apply(
         }
     }
     println!("ops-apply: applied={applied} failed={failed}");
+    if applied > 0 {
+        snapshot_store::mark_dirty(root)?;
+        if verbose {
+            println!("ops-apply: codemap snapshot marked dirty; next report will refresh");
+        }
+    }
     if failed > 0 {
         bail!("ops-apply failed: applied={applied} failed={failed}");
     }

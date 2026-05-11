@@ -88,6 +88,15 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("trace requires a query"))?;
             report::trace::print_trace(&map, query, cli.options.limit)?;
         }
+        Command::TraceField => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("trace-field requires a query"))?;
+            report::trace_field::print_trace_field(&cli.options.root, &map, query, cli.options.limit)?;
+        }
         Command::ChangePlan => {
             let map = load_report_map(&cli.options)?;
             let query = cli
@@ -232,7 +241,13 @@ pub(super) fn run(cli: Cli) -> Result<()> {
         }
         Command::VerifyPlan => {
             let map = load_report_map(&cli.options)?;
-            report::verify_plan::print_verify_plan(&map, cli.options.changed_only);
+            let mut plan = report::verify_plan::plan_for_map(&map, cli.options.changed_only);
+            report::verify_plan::apply_expectations(
+                &mut plan,
+                &cli.options.expect_present,
+                &cli.options.expect_absent,
+            );
+            print!("{}", report::verify_plan::render_verify_plan(&plan));
         }
         Command::Stale => {
             let map = load_report_map(&cli.options)?;

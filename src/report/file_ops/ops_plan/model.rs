@@ -241,6 +241,32 @@ pub enum OpsEntry {
         #[serde(default)]
         id: Option<String>,
     },
+    #[serde(rename = "delete_symbol_if_exists")]
+    DeleteSymbolIfExists {
+        path: PathBuf,
+        symbol: String,
+        expected_hash: Option<String>,
+        #[serde(default)]
+        id: Option<String>,
+    },
+    #[serde(rename = "assert_symbol_absent")]
+    AssertSymbolAbsent {
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        path: Option<PathBuf>,
+        symbol: String,
+    },
+    #[serde(rename = "assert_text_absent")]
+    AssertTextAbsent {
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        path: Option<PathBuf>,
+        text: String,
+        #[serde(default)]
+        changed_only: bool,
+    },
     #[serde(rename = "insert_before_symbol")]
     InsertBeforeSymbol {
         path: PathBuf,
@@ -276,5 +302,17 @@ pub enum OpsEntry {
         expected_hash: Option<String>,
         #[serde(default)]
         id: Option<String>,
+    },
+    #[serde(rename = "replace_field_access")]
+    ReplaceFieldAccess {
+        #[serde(default)]
+        id: Option<String>,
+        path: Option<PathBuf>,
+        find: String,
+        replace: String,
+        #[serde(default)]
+        scope: Option<String>,
+        #[serde(default)]
+        expected_matches: Option<usize>,
     },
 }

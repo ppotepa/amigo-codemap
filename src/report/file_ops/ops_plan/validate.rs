@@ -158,7 +158,7 @@ pub(super) fn validate_op(
             find,
             within_symbol,
             expected_matches,
-            ..
+            .. 
         } => {
             validate_replace_text_locator(
                 root,
@@ -169,6 +169,83 @@ pub(super) fn validate_op(
                 *expected_matches,
                 strict,
             )?;
+        }
+        OpsEntry::ReplaceFieldAccess {
+            path,
+            find,
+            scope,
+            expected_matches,
+            ..
+        } => {
+            validate_replace_field_access(
+                root,
+                map,
+                path.as_deref(),
+                find,
+                scope.as_deref(),
+                *expected_matches,
+                strict,
+            )?;
+        }
+        OpsEntry::DeleteSymbolIfExists {
+            path,
+            expected_hash,
+            ..
+        } => {
+            validate_existing_file(root, path, expected_hash.as_deref())?;
+        }
+        OpsEntry::AssertSymbolAbsent { path, symbol, .. } => {
+            if let Some(path) = path {
+                let text = fs::read_to_string(repo_path(root, path)?)?;
+                if text.contains(symbol) {
+                    bail!("assert_symbol_absent found symbol text in {}: {}", path.display(), symbol);
+                }
+            } else {
+                let Some(map) = map else {
+                    bail!("assert_symbol_absent requires codemap");
+                };
+                if map.symbols.iter().any(|entry| entry.name == *symbol) {
+                    bail!("assert_symbol_absent found symbol in codemap: {}", symbol);
+                }
+            }
+        }
+        OpsEntry::AssertTextAbsent {
+            path,
+            text,
+            changed_only,
+            ..
+        } => {
+            if let Some(path) = path {
+                let full = repo_path(root, path)?;
+                let content = fs::read_to_string(full)?;
+                if content.contains(text) {
+                    bail!("assert_text_absent found text in {}: {}", path.display(), text);
+                }
+            } else if *changed_only {
+                let Some(map) = map else {
+                    bail!("assert_text_absent requires codemap for changed_only");
+                };
+                for change in &map.git.changed {
+                    let full = repo_path(root, &change.path)?;
+                    if let Ok(content) = fs::read_to_string(full)
+                        && content.contains(text)
+                    {
+                        bail!("assert_text_absent found text in {}: {}", change.path.display(), text);
+                    }
+                }
+            } else {
+                let Some(map) = map else {
+                    bail!("assert_text_absent requires codemap");
+                };
+                for file in &map.files {
+                    let full = repo_path(root, &file.path)?;
+                    if let Ok(content) = fs::read_to_string(full)
+                        && content.contains(text)
+                    {
+                        bail!("assert_text_absent found text in {}: {}", file.path.display(), text);
+                    }
+                }
+            }
         }
         OpsEntry::ReplaceRange {
             path,
@@ -229,7 +306,7 @@ pub(super) fn validate_op(
         OpsEntry::ReplaceSymbol {
             path,
             expected_hash,
-            ..
+            .. 
         }
         | OpsEntry::DeleteSymbol {
             path,
@@ -291,34 +368,7 @@ pub(super) fn text_scope_for_symbol(
     };
 
     let map = map.ok_or_else(|| anyhow::anyhow!("within_symbol requires codemap"))?;
-    let path_text = path.to_string_lossy().replace('\\', "/");
-    let file = map
-        .files
-        .iter()
-        .find(|file| file.path.to_string_lossy().replace('\\', "/") == path_text)
-        .ok_or_else(|| {
-            anyhow::anyhow!("file not found in codemap for within_symbol: {path_text}")
-        })?;
-
-    let matches = map
-        .symbols
-        .iter()
-        .filter(|symbol| symbol.file_id == file.id && symbol.name == symbol_name)
-        .collect::<Vec<_>>();
-
-    let symbol = match matches.as_slice() {
-        [symbol] => *symbol,
-        [] => bail!(
-            "within_symbol not found in {}: {}",
-            path.display(),
-            symbol_name
-        ),
-        _ => bail!(
-            "within_symbol is ambiguous in {}: {}",
-            path.display(),
-            symbol_name
-        ),
-    };
+    let symbol = super::super::symbol_locator::resolve_symbol_in_file(map, path, symbol_name)?.symbol;
 
     let (start_byte, end_byte) = line_range_byte_span(full_text, symbol.line, symbol.line_end)
         .ok_or_else(|| {
@@ -383,24 +433,49 @@ fn validate_symbol_locator(map: Option<&CodeMap>, path: &Path, symbol: &str) -> 
     let Some(map) = map else {
         bail!("strict mode requires codemap for symbol locator checks");
     };
-    let path_text = path.to_string_lossy().replace('\\', "/");
-    let Some(file) = map
-        .files
-        .iter()
-        .find(|file| file.path.to_string_lossy().replace('\\', "/") == path_text)
-    else {
-        bail!("file not found in codemap for symbol locator: {path_text}");
-    };
-    let matches = map
-        .symbols
-        .iter()
-        .filter(|entry| entry.file_id == file.id && entry.name == symbol)
-        .count();
-    match matches {
-        1 => Ok(()),
-        0 => bail!("symbol not found in {}: {}", path_text, symbol),
-        _ => bail!("symbol is ambiguous in {}: {}", path_text, symbol),
+    super::super::symbol_locator::resolve_symbol_in_file(map, path, symbol)
+        .map(|_| ())
+        .map_err(|error| anyhow::anyhow!("{error}"))
+}
+
+fn validate_replace_field_access(
+    root: &Path,
+    map: Option<&CodeMap>,
+    path: Option<&Path>,
+    find: &str,
+    scope: Option<&str>,
+    expected_matches: Option<usize>,
+    strict: bool,
+) -> Result<()> {
+    if !find.contains('.') {
+        bail!("replace_field_access requires a dotted FIND");
     }
+    let map = map.ok_or_else(|| anyhow::anyhow!("replace_field_access requires codemap"))?;
+    let files: Vec<&Path> = if let Some(path) = path {
+        vec![path]
+    } else if scope == Some("changed") {
+        map.git.changed.iter().map(|change| change.path.as_path()).collect()
+    } else {
+        map.files.iter().map(|file| file.path.as_path()).collect()
+    };
+    let mut count = 0usize;
+    for file_path in files {
+        let full = repo_path(root, file_path)?;
+        let Ok(text) = fs::read_to_string(full) else {
+            continue;
+        };
+        count += text.matches(find).count();
+    }
+    if let Some(expected) = expected_matches {
+        if count != expected {
+            bail!("replace_field_access expected {} matches for {}, got {}", expected, find, count);
+        }
+    } else if count == 0 {
+        bail!("replace_field_access locator not found: {}", find);
+    } else if strict && count > 1 {
+        bail!("replace_field_access locator is ambiguous: {} matches for {}", count, find);
+    }
+    Ok(())
 }
 
 fn symbol_name(op: &OpsEntry) -> Option<&str> {

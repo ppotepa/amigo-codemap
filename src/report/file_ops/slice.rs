@@ -5,6 +5,7 @@ use anyhow::Result;
 use crate::model::{CodeMap, FileEntry, SymbolEntry};
 use crate::scan::language_for;
 
+use super::symbol_locator;
 use super::common::{
     find_file_by_path, import_block, is_changed, line_window, read_text_at_root, slash_path,
     symbols_in_file,
@@ -41,23 +42,11 @@ pub fn print_slice(
         return Ok(());
     }
     if let Some(symbol_name) = symbol {
-        let Some(target) = find_symbol_match(&symbols, symbol_name) else {
-            let suggestions = symbol_suggestions(&symbols, symbol_name, 8);
-            let mut message = format!("symbol not found in {}: {}", slash_path(&path), symbol_name);
-            if !suggestions.is_empty() {
-                message.push_str("\nnearby symbols:");
-                for suggestion in suggestions {
-                    message.push_str(&format!(
-                        "\n  {} {}:{} score={}",
-                        suggestion.symbol.kind,
-                        suggestion.symbol.name,
-                        suggestion.symbol.line,
-                        suggestion.score
-                    ));
-                }
-                message.push_str("\nnext: run `symbols --file <path> --metadata` or retry `slice --symbol <suggested-name>`");
+        let target = match symbol_locator::resolve_symbol_in_file(map, &path, symbol_name) {
+            Ok(resolved) => resolved.symbol,
+            Err(error) => {
+                anyhow::bail!("{error}");
             }
-            anyhow::bail!(message);
         };
         for (index, line_text) in text.lines().enumerate() {
             let line_no = index + 1;
@@ -203,6 +192,7 @@ fn parse_line_range(value: &str) -> Result<(usize, usize)> {
     Ok((start, end))
 }
 
+#[allow(dead_code)]
 fn find_symbol_match<'a>(symbols: &'a [&'a SymbolEntry], query: &str) -> Option<&'a SymbolEntry> {
     symbols
         .iter()
@@ -435,3 +425,5 @@ mod tests {
         assert!(suggestions[0].score >= 60);
     }
 }
+
+

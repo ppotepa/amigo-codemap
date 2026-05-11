@@ -1,5 +1,132 @@
 pub fn print_help() {
     println!(
-        "amigo-codemap\n\ncommands:\n  scan\n  refresh           refresh compact output and fast snapshot cache\n  watch\n  status            show fast snapshot cache status\n  changes           live git status + shortstat summary\n  files [--query tag1,tag2] [--group tag|path|language|package] [--changed]\n  symbols [--query ...] [--file path] [--metadata]\n  brief\n  compact\n  changed --group path|package|language|status\n  find <text>\n  scope <query>\n  refs <query>\n  docs\n  command-map <name>\n  taxonomy\n  anchors [query] [--write]\n  anchor-check\n  verify <profile>\n  verify-plan [--changed]\n  stale --patterns a,b,c [--changed]\n  impact <symbol> [--group feature|path|package]\n  fallout [--from file]\n  move-plan <file> [--by tauri-command|symbol]\n  dup [symbol] [--changed]\n  append-plan <file> [--task name]\n  copy-plan <target> [--from donor] [--task name]\n  slice <file> [--symbol Name] [--radius N]\n  diff-scope [--changed]\n  delete-plan <file> [--changed]\n  file-move-plan <from> --to <to>\n  rename-plan <old> --to <new>\n  import-fix-plan [--changed]\n  open-set <query> [--task name]\n  workset <name> [--from-impact symbol] [--save|--status]\n  barrel-check <dir>\n  orphan-files <dir>\n  shim-check [--changed]\n  large-files [--top N] [--with-split-hints]\n  asset-file-check <query>\n  case-check [--changed]\n  text-check [--changed]\n  patch-preview [--from patch.diff]\n  patch-check [--from patch.diff]\n  patch-apply [--from patch.diff] [--write]\n  smells [--top N] [--changed] [--group domain|package|path|language|smell|severity] [--min-score N] [--report] [--report-file <path>] [--file <path>] [--file-lines N] [--json] [--why] [--include-tests] [--include-generated]\n  refactor-candidates [alias of smells]\n  ops-schema [--json] [--example kind]\n  ops-preview [--from plan.yml|--from -|--yaml text]\n  ops-check [--from plan.yml|--from -|--yaml text] [--strict]\n  ops-apply [--from plan.yml|--from -|--yaml text] [--write] [--backup] [--stop-on-error] [--no-verbose]\n  ops-skeleton <query> [--out plan.yml] [--write]\n  ops-split [--from plan.yml|--yaml text] [--by domain|risk]\n  ops-verify [--from plan.yml|--yaml text] [--run]\n  ops-summary [--from plan.yml|--yaml text] [--changed]\n  range-for-symbol <symbol>\n  range-for-lines <path> <start-line> <end-line> [--yaml-op replace_range|delete_range]\n  anchor-range <anchor> [--to end-anchor]\n  commit-files [--changed]\n  commit-plan        live git grouped commit plan\n  tauri-commands\n  service-shape <TypeName>\n  registry-check [properties|components|file-rules|project-actions]\n  operations-summary\n  commit-summary [--changed]\n\nflags:\n  --root <path>    project root, defaults to cwd\n  --out <path>     output path, defaults to .amigo/codemap.json\n  --level <0-3>    0 files, 1 public/export symbols, 2 local symbols, 3 relations\n  --pretty         pretty JSON\n  --ai             compact/minified JSON\n  --group <kind>   group output by path|package|language|status|feature|tag|domain\n  --lines          include matching lines where supported\n  --changed        focus on git changed files\n  --patterns <a,b> stale patterns\n  --file <path>    focus reports on one file where supported\n  --from <path>    fallout/patch/ops input file; use - for stdin\n  --yaml <text>    inline ops-plan YAML input\n  --yaml-op <kind> range-for-lines op kind: replace_range or delete_range\n  --from-impact <symbol> build workset from impact refs\n  --by <kind>      move/dup/split strategy\n  --to <path>      move target, rename destination, or end anchor\n  --symbol <name>  slice symbol/rename source\n  --task <name>    open-set/workset/append/copy context task\n  --radius <n>     slice context radius\n  --context-radius <n> range-for-lines context radius\n  --top <n>        top-N listing for ranking commands\n  --file-lines <n>  base file-size threshold used for file-based smells\n  --report         include summary and save report file\n  --report-file <path> save report to explicit file path\n  --with-split-hints include split hints in large-files\n  --save           persist workset\n  --status         show workset status\n  --write          allow write-capable commands to modify files\n  --strict         fail unsafe ops-plan locators\n  --backup         create .amigo/ops-backups before ops-apply writes\n  --stop-on-error  stop ops-apply after first failed operation\n  --run            allow command-specific execution mode where supported\n  --json           JSON output where supported\n  --no-verbose     reduce ops-apply output\n  --quiet          suppress timing summary\n  --example <kind> select ops-schema example kind\n  --why            include ranking reasons where supported\n  --include-tests  include files tagged as tests\n  --include-generated include generated/index files\n  --metadata       include expanded metadata where supported\n  --compact        compact output for changes/commit-plan\n  --hide-generated hide generated/index files in changes output\n  --warnings       show only live git warnings where supported\n  --no-cache       force full scan instead of reading .amigo/codemap.snapshot.json\n  --limit <n>      output row cap, default 80"
+        "amigo-codemap
+
+Usage:
+  amigo-codemap <command> [options] [query]
+
+Core commands:
+  refresh              rebuild the snapshot
+  status               show daemon/snapshot status
+  watch                watch workspace changes
+  scan                 run a scan once
+  brief                compact summary
+  changes              show changed files
+  files                list indexed files
+  symbols              list symbols
+  trace                trace symbols and references
+  trace-field          trace chained field access
+  where                locate symbols
+  signature            show extracted signature
+  slice                show a symbol slice
+  range-for-symbol     show raw range and raw ops hints
+  verify-plan          validate a change plan
+  verify               run verification checks
+  fallout              summarize failing paths
+  open-set             rank files for a task
+  workset              inspect workset
+
+Ops commands:
+  ops-preview          preview raw operations
+  ops-check            validate raw operations
+  ops-apply            apply raw operations
+  ops-summary          summarize raw operations
+  ops-skeleton         generate raw op skeleton
+  ops-schema           print raw op schema
+  ops-split            split operations into files
+  ops-verify           verify raw operation results
+
+Navigation / planning:
+  change-plan
+  explain-file
+  neighbors
+  callsite-candidates
+  api-surface
+  component-graph
+  tauri-graph
+  todo-index
+  risk-index
+  smells
+  command-map
+  anchors
+  anchor-check
+  taxonomy
+  impact
+  move-plan
+  dup
+  service-shape
+  registry-check
+  metadata-audit
+  descriptor-skeleton
+  commit-plan
+  commit-summary
+  append-plan
+  copy-plan
+  diff-scope
+  delete-plan
+  file-move-plan
+  rename-plan
+  import-fix-plan
+  barrel-check
+  orphan-files
+  shim-check
+  large-files
+  asset-file-check
+  case-check
+  text-check
+  patch-preview
+  patch-check
+  patch-apply
+  commit-files
+
+Flags:
+  --root <path>              workspace root
+  --out <path>               output directory
+  --level <0-3>              scan depth
+  --pretty                   pretty output
+  --ai                       AI-oriented output
+  --query <text>             explicit query
+  --group <name>             grouping key
+  --lines                    line-aware output
+  --limit <n>                result limit
+  --min-score <n>            minimum score
+  --report                   emit report
+  --report-file <path>       write report file
+  --changed-only             changed files only
+  --file <path>              target file
+  --from <path>              source path
+  --to <path>                destination path
+  --symbol <name>            target symbol
+  --task <name>              task hint
+  --timings                  print timings
+  --progress                 print progress
+  --diagnostics              print diagnostics
+  --slow-file-threshold-ms <n>  slow file threshold
+  --max-file-size <bytes>    max file size
+  --max-files <n>            max files
+  --status                   show status
+  --write                    write changes
+  --strict                   strict validation
+  --backup                   create backups
+  --stop-on-error            stop on first error
+  --run                      run generated action
+  --why                      explain ranking
+  --metadata                 print metadata
+  --json                     JSON output
+  --raw                      raw ops mode
+  --no-verbose               suppress verbose output
+  --quiet                    quiet mode
+  --no-cache                 bypass cache
+  --compact                  compact output
+  --hide-generated           hide generated files
+  --include-tests            include tests
+  --include-generated        include generated files
+  --warnings                 print warnings
+  --expect-present <query>   expect symbol/text to exist
+  --expect-absent <query>    expect symbol/text to be absent
+  --daemon <mode>            daemon mode: auto|require|disabled
+  --no-daemon                disable daemon usage
+  --help, -h                 show help
+"
     );
 }

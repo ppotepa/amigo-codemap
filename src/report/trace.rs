@@ -91,6 +91,27 @@ pub fn print_trace(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
         println!("  none");
     }
 
+    println!("raw identifier matches:");
+    let mut raw_count = 0usize;
+    for symbol in &map.symbols {
+        if symbol.name.to_ascii_lowercase().contains(&query_lower) {
+            raw_count += 1;
+            if raw_count <= limit {
+                let file = files.get(symbol.file_id.as_str());
+                println!(
+                    "  {} {} {}:{}",
+                    symbol.kind,
+                    symbol.name,
+                    file.map(path_of).unwrap_or_else(|| "-".to_string()),
+                    symbol.line,
+                );
+            }
+        }
+    }
+    if raw_count == 0 {
+        println!("  none");
+    }
+
     println!("related files:");
     let mut related = std::collections::BTreeSet::<String>::new();
     for symbol in &map.symbols {

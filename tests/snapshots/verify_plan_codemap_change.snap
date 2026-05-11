@@ -12,6 +12,10 @@ optional:
   none
 skip:
   full cargo test workspace
+present:
+  none
+absent:
+  none
 reason:
   amigo-codemap source changed
 next:

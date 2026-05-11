@@ -81,6 +81,23 @@ pub(super) fn describe_op(op: &OpsEntry) -> String {
         super::model::OpsEntry::DeleteSymbol { path, symbol, .. } => {
             format!("delete_symbol {} symbol={}", path.display(), symbol)
         }
+        super::model::OpsEntry::DeleteSymbolIfExists { path, symbol, .. } => {
+            format!("delete_symbol_if_exists {} symbol={}", path.display(), symbol)
+        }
+        super::model::OpsEntry::AssertSymbolAbsent { path, symbol, .. } => format!(
+            "assert_symbol_absent {} symbol={}",
+            path.as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "-".to_string()),
+            symbol
+        ),
+        super::model::OpsEntry::AssertTextAbsent { path, text, .. } => format!(
+            "assert_text_absent {} text={}",
+            path.as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "-".to_string()),
+            text
+        ),
         super::model::OpsEntry::InsertBeforeSymbol { path, symbol, .. } => {
             format!("insert_before_symbol {} symbol={}", path.display(), symbol)
         }
@@ -90,6 +107,13 @@ pub(super) fn describe_op(op: &OpsEntry) -> String {
         super::model::OpsEntry::ReplaceMethodBody { path, symbol, .. } => {
             format!("replace_method_body {} symbol={}", path.display(), symbol)
         }
+        super::model::OpsEntry::ReplaceFieldAccess { path, find, .. } => format!(
+            "replace_field_access {} find={}",
+            path.as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "-".to_string()),
+            find
+        ),
     }
 }
 
@@ -114,9 +138,13 @@ pub(super) fn op_id(op: &OpsEntry) -> Option<&str> {
         | super::model::OpsEntry::DeleteDir { id, .. }
         | super::model::OpsEntry::ReplaceSymbol { id, .. }
         | super::model::OpsEntry::DeleteSymbol { id, .. }
+        | super::model::OpsEntry::DeleteSymbolIfExists { id, .. }
+        | super::model::OpsEntry::AssertSymbolAbsent { id, .. }
+        | super::model::OpsEntry::AssertTextAbsent { id, .. }
         | super::model::OpsEntry::InsertBeforeSymbol { id, .. }
         | super::model::OpsEntry::InsertAfterSymbol { id, .. }
-        | super::model::OpsEntry::ReplaceMethodBody { id, .. } => id.as_deref(),
+        | super::model::OpsEntry::ReplaceMethodBody { id, .. }
+        | super::model::OpsEntry::ReplaceFieldAccess { id, .. } => id.as_deref(),
     }
 }
 
@@ -141,9 +169,13 @@ pub(super) fn op_kind(op: &OpsEntry) -> &'static str {
         super::model::OpsEntry::DeleteDir { .. } => "delete_dir",
         super::model::OpsEntry::ReplaceSymbol { .. } => "replace_symbol",
         super::model::OpsEntry::DeleteSymbol { .. } => "delete_symbol",
+        super::model::OpsEntry::DeleteSymbolIfExists { .. } => "delete_symbol_if_exists",
+        super::model::OpsEntry::AssertSymbolAbsent { .. } => "assert_symbol_absent",
+        super::model::OpsEntry::AssertTextAbsent { .. } => "assert_text_absent",
         super::model::OpsEntry::InsertBeforeSymbol { .. } => "insert_before_symbol",
         super::model::OpsEntry::InsertAfterSymbol { .. } => "insert_after_symbol",
         super::model::OpsEntry::ReplaceMethodBody { .. } => "replace_method_body",
+        super::model::OpsEntry::ReplaceFieldAccess { .. } => "replace_field_access",
     }
 }
 
@@ -165,9 +197,19 @@ pub(super) fn op_path(op: &OpsEntry) -> String {
         | super::model::OpsEntry::DeleteDir { path, .. }
         | super::model::OpsEntry::ReplaceSymbol { path, .. }
         | super::model::OpsEntry::DeleteSymbol { path, .. }
+        | super::model::OpsEntry::DeleteSymbolIfExists { path, .. }
         | super::model::OpsEntry::InsertBeforeSymbol { path, .. }
         | super::model::OpsEntry::InsertAfterSymbol { path, .. }
         | super::model::OpsEntry::ReplaceMethodBody { path, .. } => path.display().to_string(),
+        super::model::OpsEntry::AssertSymbolAbsent { path, .. }
+        | super::model::OpsEntry::AssertTextAbsent { path, .. } => path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".to_string()),
+        super::model::OpsEntry::ReplaceFieldAccess { path, .. } => path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".to_string()),
         super::model::OpsEntry::CopyFile { from, to, .. }
         | super::model::OpsEntry::MoveFile { from, to, .. }
         | super::model::OpsEntry::RenameFile { from, to, .. } => {
@@ -194,9 +236,17 @@ pub(super) fn op_paths(op: &OpsEntry) -> Vec<&Path> {
         | super::model::OpsEntry::DeleteDir { path, .. }
         | super::model::OpsEntry::ReplaceSymbol { path, .. }
         | super::model::OpsEntry::DeleteSymbol { path, .. }
+        | super::model::OpsEntry::DeleteSymbolIfExists { path, .. }
         | super::model::OpsEntry::InsertBeforeSymbol { path, .. }
         | super::model::OpsEntry::InsertAfterSymbol { path, .. }
         | super::model::OpsEntry::ReplaceMethodBody { path, .. } => vec![path.as_path()],
+        super::model::OpsEntry::AssertSymbolAbsent { path, .. }
+        | super::model::OpsEntry::AssertTextAbsent { path, .. } => {
+            path.as_ref().map(|path| vec![path.as_path()]).unwrap_or_default()
+        }
+        super::model::OpsEntry::ReplaceFieldAccess { path, .. } => {
+            path.as_ref().map(|path| vec![path.as_path()]).unwrap_or_default()
+        }
         super::model::OpsEntry::CopyFile { from, to, .. }
         | super::model::OpsEntry::MoveFile { from, to, .. }
         | super::model::OpsEntry::RenameFile { from, to, .. } => vec![from.as_path(), to.as_path()],
@@ -224,9 +274,13 @@ pub(super) fn locator_kind(op: &OpsEntry) -> &'static str {
         | super::model::OpsEntry::ReplaceBetweenAnchors { .. } => "anchor",
         super::model::OpsEntry::ReplaceSymbol { .. }
         | super::model::OpsEntry::DeleteSymbol { .. }
+        | super::model::OpsEntry::DeleteSymbolIfExists { .. }
         | super::model::OpsEntry::InsertBeforeSymbol { .. }
         | super::model::OpsEntry::InsertAfterSymbol { .. }
         | super::model::OpsEntry::ReplaceMethodBody { .. } => "symbol",
+        super::model::OpsEntry::AssertSymbolAbsent { .. }
+        | super::model::OpsEntry::AssertTextAbsent { .. }
+        | super::model::OpsEntry::ReplaceFieldAccess { .. } => "file",
     }
 }
 
@@ -466,8 +520,12 @@ pub(super) fn safety_reason_for_op(op: &OpsEntry) -> &'static str {
         super::model::OpsEntry::DeleteDir { .. } => "empty directory exists",
         super::model::OpsEntry::ReplaceSymbol { .. }
         | super::model::OpsEntry::DeleteSymbol { .. }
+        | super::model::OpsEntry::DeleteSymbolIfExists { .. }
         | super::model::OpsEntry::InsertBeforeSymbol { .. }
         | super::model::OpsEntry::InsertAfterSymbol { .. }
+        | super::model::OpsEntry::AssertSymbolAbsent { .. }
+        | super::model::OpsEntry::AssertTextAbsent { .. }
+        | super::model::OpsEntry::ReplaceFieldAccess { .. }
         | super::model::OpsEntry::ReplaceMethodBody { .. } => {
             "file exists; symbol range is resolved during ops-apply"
         }

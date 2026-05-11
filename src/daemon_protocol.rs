@@ -35,6 +35,9 @@ pub struct DaemonStatus {
     pub dependencies: usize,
     pub areas: usize,
     pub generated_at_unix_ms: u64,
+    pub generation: u64,
+    pub dirty_paths: usize,
+    pub last_refresh_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

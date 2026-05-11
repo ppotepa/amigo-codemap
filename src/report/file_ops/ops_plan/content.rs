@@ -89,7 +89,11 @@ pub(super) fn validate_content_sources(root: &Path, plan: &OpsPlan, op: &OpsEntr
         | OpsEntry::RenameFile { .. }
         | OpsEntry::CreateDir { .. }
         | OpsEntry::DeleteDir { .. }
-        | OpsEntry::DeleteSymbol { .. } => {}
+        | OpsEntry::DeleteSymbol { .. }
+        | OpsEntry::DeleteSymbolIfExists { .. }
+        | OpsEntry::AssertSymbolAbsent { .. }
+        | OpsEntry::AssertTextAbsent { .. }
+        | OpsEntry::ReplaceFieldAccess { .. } => {}
     }
     Ok(())
 }
@@ -156,6 +160,10 @@ pub(super) fn op_content_from_paths(op: &OpsEntry) -> Vec<&Path> {
         | OpsEntry::RenameFile { .. }
         | OpsEntry::CreateDir { .. }
         | OpsEntry::DeleteDir { .. }
-        | OpsEntry::DeleteSymbol { .. } => Vec::new(),
+        | OpsEntry::DeleteSymbol { .. }
+        | OpsEntry::DeleteSymbolIfExists { .. }
+        | OpsEntry::AssertSymbolAbsent { .. }
+        | OpsEntry::AssertTextAbsent { .. }
+        | OpsEntry::ReplaceFieldAccess { .. } => Vec::new(),
     }
 }

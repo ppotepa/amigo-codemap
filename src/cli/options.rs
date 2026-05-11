@@ -43,6 +43,12 @@ pub struct Options {
     pub context_radius: usize,
     pub top: usize,
     pub with_split_hints: bool,
+    pub timings: bool,
+    pub progress: bool,
+    pub diagnostics: bool,
+    pub slow_file_threshold_ms: u64,
+    pub max_file_size_bytes: u64,
+    pub max_files: usize,
     pub save: bool,
     pub status: bool,
     pub write: bool,
@@ -62,6 +68,16 @@ pub struct Options {
     pub include_tests: bool,
     pub include_generated: bool,
     pub warnings: bool,
+    pub expect_present: Vec<String>,
+    pub expect_absent: Vec<String>,
+    pub daemon_mode: DaemonMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaemonMode {
+    Auto,
+    Require,
+    Disabled,
 }
 
 #[derive(Debug, Clone)]

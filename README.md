@@ -77,6 +77,22 @@ For most tasks, start with:
 & $cm open-set <thing> --why --limit 10
 ```
 
+Prefer the shortest command that answers the question. Use `--print` only when you need refresh diagnostics or timing output. In normal workflow, keep to:
+
+```powershell
+& $cm refresh --level 1
+& $cm status
+& $cm brief
+& $cm trace <thing> --limit 20
+```
+
+Use `--print` only when diagnosing slow refreshes or scan behavior:
+
+```powershell
+& $cm refresh --level 1 --print
+& $cm refresh --level 1 --print --timings
+```
+
 ## Raw Ops Workflow
 
 Use codemap as the first navigation layer. Do not begin implementation by reading whole files, running repo-wide `rg`, or opening `concat-output.txt`.
@@ -110,6 +126,8 @@ Refresh manually:
 & $cm refresh
 ```
 
+Do not add `--print` here unless you are troubleshooting refresh performance or scan output.
+
 Check status:
 
 ```powershell
@@ -128,6 +146,16 @@ Then use regular commands in another terminal:
 & $cm trace ui-document
 & $cm open-set ui-document --why --limit 10
 & $cm impact ui-document
+```
+
+Suggested everyday agent loop:
+
+```powershell
+& $cm brief
+& $cm status
+& $cm trace <symbol> --limit 20
+& $cm open-set <query> --why --limit 10
+& $cm change-plan <query> --limit 20
 ```
 
 Force a full scan when debugging scanner behavior or stale cache suspicion:
