@@ -386,11 +386,16 @@ where
             "--warnings" => warnings = true,
             "--daemon" => {
                 index += 1;
-                daemon_mode = match required_value(&args, index, "--daemon")?.to_ascii_lowercase().as_str() {
+                daemon_mode = match required_value(&args, index, "--daemon")?
+                    .to_ascii_lowercase()
+                    .as_str()
+                {
                     "auto" => DaemonMode::Auto,
                     "require" => DaemonMode::Require,
                     "disabled" => DaemonMode::Disabled,
-                    other => bail!("unknown --daemon mode `{other}`; expected auto, require, or disabled"),
+                    other => bail!(
+                        "unknown --daemon mode `{other}`; expected auto, require, or disabled"
+                    ),
                 };
             }
             "--no-daemon" => daemon_mode = DaemonMode::Disabled,
@@ -509,14 +514,14 @@ where
             radius,
             context_radius,
             top,
-        with_split_hints,
-        timings,
-        progress,
-        diagnostics,
-        slow_file_threshold_ms,
-        max_file_size_bytes,
-        max_files,
-        save,
+            with_split_hints,
+            timings,
+            progress,
+            diagnostics,
+            slow_file_threshold_ms,
+            max_file_size_bytes,
+            max_files,
+            save,
             status,
             write,
             strict,

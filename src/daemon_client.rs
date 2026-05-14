@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 
-use crate::cli::Options;
 use crate::cli::DaemonMode;
+use crate::cli::Options;
 use crate::daemon_protocol::{
     DEFAULT_DAEMON_ADDR, DaemonMapOptions, DaemonRequest, DaemonResponse,
 };
@@ -43,7 +43,9 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
             DaemonMode::Require => Err(error),
             _ => {
                 if verbose_daemon_client() {
-                    eprintln!("codemap daemon unavailable; falling back to local snapshot: {error}");
+                    eprintln!(
+                        "codemap daemon unavailable; falling back to local snapshot: {error}"
+                    );
                 }
                 Ok(None)
             }
@@ -54,7 +56,7 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
 fn daemon_is_disabled(options: &Options) -> bool {
     matches!(options.daemon_mode, DaemonMode::Disabled)
         || std::env::var("AMIGO_CODEMAP_NO_DAEMON")
-        .is_ok_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .is_ok_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
 }
 
 fn verbose_daemon_client() -> bool {

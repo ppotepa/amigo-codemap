@@ -1,5 +1,5 @@
-use std::sync::mpsc;
 use std::collections::BTreeSet;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};

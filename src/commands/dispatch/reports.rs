@@ -95,7 +95,12 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 .query
                 .as_deref()
                 .ok_or_else(|| anyhow::anyhow!("trace-field requires a query"))?;
-            report::trace_field::print_trace_field(&cli.options.root, &map, query, cli.options.limit)?;
+            report::trace_field::print_trace_field(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
         }
         Command::ChangePlan => {
             let map = load_report_map(&cli.options)?;

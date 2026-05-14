@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, FileEntry, SymbolEntry};
 
@@ -35,10 +35,17 @@ pub fn resolve_file<'a>(map: &'a CodeMap, path: &Path) -> Result<&'a FileEntry> 
 }
 
 pub fn symbols_in_file<'a>(map: &'a CodeMap, file: &'a FileEntry) -> Vec<&'a SymbolEntry> {
-    map.symbols.iter().filter(|symbol| symbol.file_id == file.id).collect()
+    map.symbols
+        .iter()
+        .filter(|symbol| symbol.file_id == file.id)
+        .collect()
 }
 
-pub fn symbol_suggestions<'a>(symbols: &'a [&'a SymbolEntry], query: &str, limit: usize) -> Vec<SymbolSuggestion<'a>> {
+pub fn symbol_suggestions<'a>(
+    symbols: &'a [&'a SymbolEntry],
+    query: &str,
+    limit: usize,
+) -> Vec<SymbolSuggestion<'a>> {
     let query_norm = normalize_symbol_name(query);
     let mut out = symbols
         .iter()
@@ -47,12 +54,20 @@ pub fn symbol_suggestions<'a>(symbols: &'a [&'a SymbolEntry], query: &str, limit
             symbol,
         })
         .collect::<Vec<_>>();
-    out.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.symbol.name.cmp(&b.symbol.name)));
+    out.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then_with(|| a.symbol.name.cmp(&b.symbol.name))
+    });
     out.truncate(limit);
     out
 }
 
-pub fn resolve_symbol_in_file<'a>(map: &'a CodeMap, path: &Path, query: &str) -> Result<ResolvedSymbol<'a>> {
+pub fn resolve_symbol_in_file<'a>(
+    map: &'a CodeMap,
+    path: &Path,
+    query: &str,
+) -> Result<ResolvedSymbol<'a>> {
     let file = resolve_file(map, path)?;
     let symbols = symbols_in_file(map, file);
     let query_norm = normalize_symbol_name(query);
@@ -71,22 +86,42 @@ pub fn resolve_symbol_in_file<'a>(map: &'a CodeMap, path: &Path, query: &str) ->
         bail!("{}", format_symbol_not_found(path, query, &suggestions));
     };
 
-    Ok(ResolvedSymbol { file, symbol, score, match_kind: kind })
+    Ok(ResolvedSymbol {
+        file,
+        symbol,
+        score,
+        match_kind: kind,
+    })
 }
 
-pub fn format_symbol_not_found(path: &Path, query: &str, suggestions: &[SymbolSuggestion<'_>]) -> String {
-    let mut out = format!("symbol not found in {}: {}\nnearby symbols:\n", path.display(), query);
+pub fn format_symbol_not_found(
+    path: &Path,
+    query: &str,
+    suggestions: &[SymbolSuggestion<'_>],
+) -> String {
+    let mut out = format!(
+        "symbol not found in {}: {}\nnearby symbols:\n",
+        path.display(),
+        query
+    );
     if suggestions.is_empty() {
         out.push_str("  none\n");
     } else {
         for item in suggestions {
-            out.push_str(&format!("  {} {} score={}\n", item.symbol.kind, item.symbol.name, item.score));
+            out.push_str(&format!(
+                "  {} {} score={}\n",
+                item.symbol.kind, item.symbol.name, item.score
+            ));
         }
     }
     out
 }
 
-fn symbol_match_score(symbol: &SymbolEntry, query: &str, query_norm: &str) -> Option<(usize, SymbolMatchKind)> {
+fn symbol_match_score(
+    symbol: &SymbolEntry,
+    query: &str,
+    query_norm: &str,
+) -> Option<(usize, SymbolMatchKind)> {
     if symbol.name == query {
         return Some((1000, SymbolMatchKind::Exact));
     }
@@ -116,16 +151,26 @@ fn symbol_similarity_score(symbol: &SymbolEntry, query: &str, query_norm: &str) 
 }
 
 fn normalize_symbol_name(value: &str) -> String {
-    value.chars().filter(|ch| ch.is_ascii_alphanumeric()).flat_map(char::to_lowercase).collect()
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn common_prefix_len(left: &str, right: &str) -> usize {
-    left.chars().zip(right.chars()).take_while(|(a, b)| a.eq_ignore_ascii_case(b)).count()
+    left.chars()
+        .zip(right.chars())
+        .take_while(|(a, b)| a.eq_ignore_ascii_case(b))
+        .count()
 }
 
 fn common_subsequence_len(left: &str, right: &str) -> usize {
     let right_norm = normalize_symbol_name(right);
-    normalize_symbol_name(left).chars().filter(|ch| right_norm.contains(*ch)).count()
+    normalize_symbol_name(left)
+        .chars()
+        .filter(|ch| right_norm.contains(*ch))
+        .count()
 }
 
 fn symbol_token_overlap_score(left: &str, right: &str) -> usize {

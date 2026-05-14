@@ -82,7 +82,11 @@ pub(super) fn describe_op(op: &OpsEntry) -> String {
             format!("delete_symbol {} symbol={}", path.display(), symbol)
         }
         super::model::OpsEntry::DeleteSymbolIfExists { path, symbol, .. } => {
-            format!("delete_symbol_if_exists {} symbol={}", path.display(), symbol)
+            format!(
+                "delete_symbol_if_exists {} symbol={}",
+                path.display(),
+                symbol
+            )
         }
         super::model::OpsEntry::AssertSymbolAbsent { path, symbol, .. } => format!(
             "assert_symbol_absent {} symbol={}",
@@ -241,12 +245,14 @@ pub(super) fn op_paths(op: &OpsEntry) -> Vec<&Path> {
         | super::model::OpsEntry::InsertAfterSymbol { path, .. }
         | super::model::OpsEntry::ReplaceMethodBody { path, .. } => vec![path.as_path()],
         super::model::OpsEntry::AssertSymbolAbsent { path, .. }
-        | super::model::OpsEntry::AssertTextAbsent { path, .. } => {
-            path.as_ref().map(|path| vec![path.as_path()]).unwrap_or_default()
-        }
-        super::model::OpsEntry::ReplaceFieldAccess { path, .. } => {
-            path.as_ref().map(|path| vec![path.as_path()]).unwrap_or_default()
-        }
+        | super::model::OpsEntry::AssertTextAbsent { path, .. } => path
+            .as_ref()
+            .map(|path| vec![path.as_path()])
+            .unwrap_or_default(),
+        super::model::OpsEntry::ReplaceFieldAccess { path, .. } => path
+            .as_ref()
+            .map(|path| vec![path.as_path()])
+            .unwrap_or_default(),
         super::model::OpsEntry::CopyFile { from, to, .. }
         | super::model::OpsEntry::MoveFile { from, to, .. }
         | super::model::OpsEntry::RenameFile { from, to, .. } => vec![from.as_path(), to.as_path()],

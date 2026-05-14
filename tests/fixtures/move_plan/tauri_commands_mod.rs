@@ -9,3 +9,4 @@ pub fn open_mod() {}
 
 #[tauri::command]
 pub fn open_settings_window() {}
+

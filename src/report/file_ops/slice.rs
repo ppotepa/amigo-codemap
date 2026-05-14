@@ -5,12 +5,12 @@ use anyhow::Result;
 use crate::model::{CodeMap, FileEntry, SymbolEntry};
 use crate::scan::language_for;
 
-use super::symbol_locator;
 use super::common::{
     find_file_by_path, import_block, is_changed, line_window, read_text_at_root, slash_path,
     symbols_in_file,
 };
 use super::model::{FileOpReport, NextAction, Risk, RiskLevel};
+use super::symbol_locator;
 
 pub fn print_slice(
     root: &Path,
@@ -425,5 +425,3 @@ mod tests {
         assert!(suggestions[0].score >= 60);
     }
 }
-
-

@@ -158,7 +158,7 @@ pub(super) fn validate_op(
             find,
             within_symbol,
             expected_matches,
-            .. 
+            ..
         } => {
             validate_replace_text_locator(
                 root,
@@ -198,7 +198,11 @@ pub(super) fn validate_op(
             if let Some(path) = path {
                 let text = fs::read_to_string(repo_path(root, path)?)?;
                 if text.contains(symbol) {
-                    bail!("assert_symbol_absent found symbol text in {}: {}", path.display(), symbol);
+                    bail!(
+                        "assert_symbol_absent found symbol text in {}: {}",
+                        path.display(),
+                        symbol
+                    );
                 }
             } else {
                 let Some(map) = map else {
@@ -219,7 +223,11 @@ pub(super) fn validate_op(
                 let full = repo_path(root, path)?;
                 let content = fs::read_to_string(full)?;
                 if content.contains(text) {
-                    bail!("assert_text_absent found text in {}: {}", path.display(), text);
+                    bail!(
+                        "assert_text_absent found text in {}: {}",
+                        path.display(),
+                        text
+                    );
                 }
             } else if *changed_only {
                 let Some(map) = map else {
@@ -230,7 +238,11 @@ pub(super) fn validate_op(
                     if let Ok(content) = fs::read_to_string(full)
                         && content.contains(text)
                     {
-                        bail!("assert_text_absent found text in {}: {}", change.path.display(), text);
+                        bail!(
+                            "assert_text_absent found text in {}: {}",
+                            change.path.display(),
+                            text
+                        );
                     }
                 }
             } else {
@@ -242,7 +254,11 @@ pub(super) fn validate_op(
                     if let Ok(content) = fs::read_to_string(full)
                         && content.contains(text)
                     {
-                        bail!("assert_text_absent found text in {}: {}", file.path.display(), text);
+                        bail!(
+                            "assert_text_absent found text in {}: {}",
+                            file.path.display(),
+                            text
+                        );
                     }
                 }
             }
@@ -306,7 +322,7 @@ pub(super) fn validate_op(
         OpsEntry::ReplaceSymbol {
             path,
             expected_hash,
-            .. 
+            ..
         }
         | OpsEntry::DeleteSymbol {
             path,
@@ -368,7 +384,8 @@ pub(super) fn text_scope_for_symbol(
     };
 
     let map = map.ok_or_else(|| anyhow::anyhow!("within_symbol requires codemap"))?;
-    let symbol = super::super::symbol_locator::resolve_symbol_in_file(map, path, symbol_name)?.symbol;
+    let symbol =
+        super::super::symbol_locator::resolve_symbol_in_file(map, path, symbol_name)?.symbol;
 
     let (start_byte, end_byte) = line_range_byte_span(full_text, symbol.line, symbol.line_end)
         .ok_or_else(|| {
@@ -454,7 +471,11 @@ fn validate_replace_field_access(
     let files: Vec<&Path> = if let Some(path) = path {
         vec![path]
     } else if scope == Some("changed") {
-        map.git.changed.iter().map(|change| change.path.as_path()).collect()
+        map.git
+            .changed
+            .iter()
+            .map(|change| change.path.as_path())
+            .collect()
     } else {
         map.files.iter().map(|file| file.path.as_path()).collect()
     };
@@ -468,12 +489,21 @@ fn validate_replace_field_access(
     }
     if let Some(expected) = expected_matches {
         if count != expected {
-            bail!("replace_field_access expected {} matches for {}, got {}", expected, find, count);
+            bail!(
+                "replace_field_access expected {} matches for {}, got {}",
+                expected,
+                find,
+                count
+            );
         }
     } else if count == 0 {
         bail!("replace_field_access locator not found: {}", find);
     } else if strict && count > 1 {
-        bail!("replace_field_access locator is ambiguous: {} matches for {}", count, find);
+        bail!(
+            "replace_field_access locator is ambiguous: {} matches for {}",
+            count,
+            find
+        );
     }
     Ok(())
 }

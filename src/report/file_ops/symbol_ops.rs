@@ -120,7 +120,11 @@ pub fn replace_field_access(
     let files: Vec<&Path> = if let Some(path) = path {
         vec![path]
     } else if scope == Some("changed") {
-        map.git.changed.iter().map(|change| change.path.as_path()).collect()
+        map.git
+            .changed
+            .iter()
+            .map(|change| change.path.as_path())
+            .collect()
     } else {
         map.files.iter().map(|file| file.path.as_path()).collect()
     };
@@ -233,7 +237,3 @@ fn insert_at_line(root: &Path, path: &Path, line: usize, content: &str, write: b
     }
     Ok(())
 }
-
-
-
-

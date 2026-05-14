@@ -5,11 +5,13 @@ use std::time::Instant;
 use anyhow::Result;
 
 use crate::cli::Options;
-use crate::model::{AreaEntry, CodeMap, DependencyEntry, RelationEntry, SymbolEntry, TextOccurrenceEntry};
+use crate::model::{
+    AreaEntry, CodeMap, DependencyEntry, RelationEntry, SymbolEntry, TextOccurrenceEntry,
+};
 use crate::{output, snapshot_store};
 use amigo_symbol_explorer::scan::{
-    scan_files_with_options, scan_project, scan_project_with_files, ScanDiagnostics,
-    SymbolExplorerScanOptions,
+    ScanDiagnostics, SymbolExplorerScanOptions, scan_files_with_options, scan_project,
+    scan_project_with_files,
 };
 
 #[derive(Debug, Clone)]
@@ -84,7 +86,11 @@ impl WorkspaceIndex {
         })
     }
 
-    pub fn refresh_touched(&mut self, options: &Options, touched: &[PathBuf]) -> Result<IndexDelta> {
+    pub fn refresh_touched(
+        &mut self,
+        options: &Options,
+        touched: &[PathBuf],
+    ) -> Result<IndexDelta> {
         self.mark_dirty_paths(touched.iter().cloned());
         self.refresh(options)
     }
@@ -123,14 +129,21 @@ fn scan_options(options: &Options) -> SymbolExplorerScanOptions {
     }
 }
 
-fn assign_stable_file_ids(mut files: Vec<crate::model::FileEntry>, old_files: &[crate::model::FileEntry]) -> Vec<crate::model::FileEntry> {
+fn assign_stable_file_ids(
+    mut files: Vec<crate::model::FileEntry>,
+    old_files: &[crate::model::FileEntry],
+) -> Vec<crate::model::FileEntry> {
     let old_by_path = old_files
         .iter()
         .map(|file| (normalize_relative(&file.path), file.id.clone()))
         .collect::<BTreeMap<_, _>>();
     let mut next_id = old_files
         .iter()
-        .filter_map(|file| file.id.strip_prefix('f').and_then(|n| n.parse::<usize>().ok()))
+        .filter_map(|file| {
+            file.id
+                .strip_prefix('f')
+                .and_then(|n| n.parse::<usize>().ok())
+        })
         .max()
         .unwrap_or(0)
         + 1;

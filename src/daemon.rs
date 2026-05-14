@@ -199,26 +199,26 @@ fn handle_connection(
         Ok(DaemonRequest::Status) => DaemonResponse::Status {
             status: current_status(state, dirty_paths)?,
         },
-        Ok(DaemonRequest::GetMap { options }) => match ensure_fresh_map(state, dirty_paths, &options)
-        {
-            Ok(stale_was_refreshed) => {
-                let map = state
-                    .lock()
-                    .map_err(|_| anyhow!("daemon state lock poisoned"))?
-                    .index
-                    .map
-                    .clone();
-                DaemonResponse::Map {
-                    map,
-                    stale_was_refreshed,
+        Ok(DaemonRequest::GetMap { options }) => {
+            match ensure_fresh_map(state, dirty_paths, &options) {
+                Ok(stale_was_refreshed) => {
+                    let map = state
+                        .lock()
+                        .map_err(|_| anyhow!("daemon state lock poisoned"))?
+                        .index
+                        .map
+                        .clone();
+                    DaemonResponse::Map {
+                        map,
+                        stale_was_refreshed,
+                    }
                 }
+                Err(error) => DaemonResponse::Error {
+                    message: error.to_string(),
+                },
             }
-            Err(error) => DaemonResponse::Error {
-                message: error.to_string(),
-            },
-        },
-        Ok(DaemonRequest::Refresh { options }) => match refresh_map(state, dirty_paths, &options)
-        {
+        }
+        Ok(DaemonRequest::Refresh { options }) => match refresh_map(state, dirty_paths, &options) {
             Ok(wrote_output) => {
                 let generated_at_unix_ms = state
                     .lock()
@@ -417,7 +417,10 @@ fn should_ignore_event(path: &Path) -> bool {
             ".git" | ".amigo" | "target" | "node_modules" | "dist" | "build" | "coverage"
         )
     }) || path.extension().is_some_and(|ext| {
-        matches!(ext.to_string_lossy().as_ref(), "tmp" | "swp" | "lock" | "log")
+        matches!(
+            ext.to_string_lossy().as_ref(),
+            "tmp" | "swp" | "lock" | "log"
+        )
     })
 }
 
