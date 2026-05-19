@@ -156,6 +156,11 @@ pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
         aliases: &[],
     },
     CommandSpec {
+        command: Command::Plugins,
+        name: "plugins",
+        aliases: &["plugin-graph"],
+    },
+    CommandSpec {
         command: Command::TauriGraph,
         name: "tauri-graph",
         aliases: &[],
@@ -616,6 +621,7 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::MetadataAudit
         | Command::ApiSurface
         | Command::ComponentGraph
+        | Command::Plugins
         | Command::TauriGraph
         | Command::CallsiteCandidates
         | Command::TodoIndex
@@ -704,6 +710,7 @@ pub(crate) fn command_scan_policy(command: Command) -> ScanPolicy {
         | Command::Neighbors
         | Command::ApiSurface
         | Command::ComponentGraph
+        | Command::Plugins
         | Command::TauriGraph
         | Command::CallsiteCandidates
         | Command::TodoIndex

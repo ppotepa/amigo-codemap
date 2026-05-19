@@ -144,6 +144,9 @@ pub(super) fn run(cli: Cli) -> Result<()> {
             let map = load_report_map(&cli.options)?;
             report::component_graph::print_component_graph(&map, cli.options.limit);
         }
+        Command::Plugins => {
+            report::plugins::print_plugins_report(&cli.options.root, cli.options.limit)?;
+        }
         Command::TauriGraph => {
             let map = load_report_map(&cli.options)?;
             report::tauri_graph::print_tauri_graph(&map, cli.options.limit);

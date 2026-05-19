@@ -17,6 +17,7 @@ pub enum Command {
     Neighbors,
     ApiSurface,
     ComponentGraph,
+    Plugins,
     TauriGraph,
     CallsiteCandidates,
     TodoIndex,

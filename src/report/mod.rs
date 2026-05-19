@@ -24,6 +24,7 @@ pub mod impact;
 pub mod live_changes;
 pub mod move_plan;
 pub mod neighbors;
+pub mod plugins;
 pub mod registry;
 pub mod risk_index;
 pub mod service_shape;
