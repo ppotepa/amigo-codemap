@@ -25,7 +25,7 @@ pub fn print_shim_check(
             continue;
         };
         if let Some(class) = classify_shim(&text) {
-            if class == "re-export/mod shim" {
+            if class == "forwarding export/mod shim" {
                 shims += 1;
                 findings.push(format!("shim: {}", slash_path(&file.path)));
             } else {
@@ -93,7 +93,7 @@ fn classify_shim(text: &str) -> Option<&'static str> {
             || line.starts_with("pub mod ")
             || line.starts_with("mod ")
     }) {
-        return Some("re-export/mod shim");
+        return Some("forwarding export/mod shim");
     }
     if lines.iter().all(|line| line.contains("Placeholder")) {
         return Some("compat shim");

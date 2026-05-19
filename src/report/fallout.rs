@@ -103,7 +103,7 @@ pub fn render_fallout(input: &str, limit: usize) -> String {
 
 fn likely_cause(file: &str, errors: &[BuildError]) -> &'static str {
     if file.contains("commands/mod.rs") {
-        "missing re-export after split"
+        "missing forwarding export after split"
     } else if errors
         .iter()
         .any(|e| e.message.contains("WorkspaceRuntimeServices"))
@@ -167,7 +167,7 @@ mod tests {
                 "crates/apps/amigo-editor/src-tauri/src/commands/mod.rs",
                 &errors
             ),
-            "missing re-export after split"
+            "missing forwarding export after split"
         );
     }
 

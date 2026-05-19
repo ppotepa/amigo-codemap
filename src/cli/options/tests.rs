@@ -261,6 +261,7 @@ fn every_command_variant_has_command_spec() {
         Command::Compact,
         Command::Explain,
         Command::Brief,
+        Command::Plugins,
         Command::Find,
         Command::Scope,
         Command::Refs,

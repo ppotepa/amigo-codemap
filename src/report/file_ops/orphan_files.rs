@@ -204,7 +204,7 @@ fn classify_shim(text: &str) -> Option<&'static str> {
             || line.starts_with("pub mod ")
             || line.starts_with("mod ")
     }) {
-        return Some("re-export/mod shim");
+        return Some("forwarding export/mod shim");
     }
 
     None
@@ -232,7 +232,7 @@ mod tests {
     fn recognizes_shim() {
         assert_eq!(
             classify_shim(r#"export { Thing } from "./thing";"#),
-            Some("re-export/mod shim")
+            Some("forwarding export/mod shim")
         );
     }
 
