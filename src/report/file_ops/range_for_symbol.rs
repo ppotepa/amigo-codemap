@@ -1,10 +1,24 @@
 use std::path::Path;
 
 use anyhow::{Result, bail};
+use serde::Serialize;
 
 use crate::model::{CodeMap, FileEntry, SymbolEntry};
 
-pub fn print_range_for_symbol(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
+#[derive(Debug, Clone, Serialize)]
+struct SymbolRangeRecord {
+    path: String,
+    name: String,
+    kind: String,
+    owner: Option<String>,
+    line: usize,
+    line_end: usize,
+    body_open_line: Option<usize>,
+    body_close_line: Option<usize>,
+    signature: String,
+}
+
+pub fn print_range_for_symbol(map: &CodeMap, query: &str, limit: usize, json: bool) -> Result<()> {
     if query.trim().is_empty() {
         bail!("range-for-symbol requires a symbol query");
     }
@@ -23,6 +37,19 @@ pub fn print_range_for_symbol(map: &CodeMap, query: &str, limit: usize) -> Resul
         })
         .collect::<Vec<_>>();
 
+    if json {
+        let records = matches
+            .into_iter()
+            .take(limit)
+            .map(|symbol| {
+                let file = files.get(symbol.file_id.as_str()).copied();
+                symbol_range_record(symbol, file)
+            })
+            .collect::<Vec<_>>();
+        println!("{}", serde_json::to_string_pretty(&records)?);
+        return Ok(());
+    }
+
     println!("range-for-symbol: {query}");
     if matches.is_empty() {
         println!("no symbols matched");
@@ -37,45 +64,49 @@ pub fn print_range_for_symbol(map: &CodeMap, query: &str, limit: usize) -> Resul
     Ok(())
 }
 
+fn symbol_range_record(symbol: &SymbolEntry, file: Option<&FileEntry>) -> SymbolRangeRecord {
+    SymbolRangeRecord {
+        path: file
+            .map(|entry| slash_path(&entry.path))
+            .unwrap_or_else(|| "-".to_string()),
+        name: symbol.name.clone(),
+        kind: symbol.kind.clone(),
+        owner: symbol.owner.clone(),
+        line: symbol.line,
+        line_end: symbol.line_end,
+        body_open_line: symbol.body_open_line,
+        body_close_line: symbol.body_close_line,
+        signature: symbol.signature.clone(),
+    }
+}
+
 fn print_symbol_range(symbol: &SymbolEntry, file: Option<&FileEntry>) {
-    println!("symbol: {}", symbol.name);
-    println!("kind: {}", symbol.kind);
+    let path = file
+        .map(|entry| slash_path(&entry.path))
+        .unwrap_or_else(|| "-".to_string());
+    println!("{} {}", symbol.kind, symbol.name);
+    println!("  file: {path}");
+    println!("  line-start: {}", symbol.line);
+    println!("  line-end: {}", symbol.line_end);
     println!(
-        "path: {}",
-        file.map(|file| slash_path(&file.path))
+        "  body-open-line: {}",
+        symbol
+            .body_open_line
+            .map(|value| value.to_string())
             .unwrap_or_else(|| "-".to_string())
     );
-    println!("start_line: {}", symbol.line);
-    println!("end_line: {}", symbol.line_end);
-    println!("line_count: {}", symbol.line_count);
     println!(
-        "hash: {}",
-        file.map(|file| file.hash.as_str()).unwrap_or("-")
+        "  body-close-line: {}",
+        symbol
+            .body_close_line
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "-".to_string())
     );
+    println!("  signature: {}", symbol.signature);
     println!(
-        "expected_hash: {}",
-        file.map(|file| file.hash.as_str()).unwrap_or("-")
+        "  raw-op: ACTION: REPLACE SYMBOL | FILE: {} | SYMBOL: {}",
+        path, symbol.name
     );
-    println!("visibility: {}", symbol.visibility);
-    println!("owner: {}", symbol.owner.as_deref().unwrap_or("-"));
-    println!("signature: {}", symbol.signature);
-    println!("ops hint:");
-    if let Some(file) = file {
-        println!("  - kind: replace_symbol");
-        println!("    path: {}", slash_path(&file.path));
-        println!("    symbol: {}", symbol.name);
-        println!("    content: |");
-        println!("      # replacement content");
-        println!();
-        println!("raw ops hint:");
-        println!("ACTION: REPLACE SYMBOL");
-        println!("FILE: {}", slash_path(&file.path));
-        println!("SYMBOL: {}", symbol.name);
-        println!("EXPECTED_HASH: {}", file.hash.as_str());
-        println!("CONTENT:");
-        println!("# replacement content");
-        println!("END");
-    }
 }
 
 fn slash_path(path: &Path) -> String {

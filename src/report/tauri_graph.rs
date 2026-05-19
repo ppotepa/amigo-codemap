@@ -108,6 +108,8 @@ mod tests {
                 generics: vec![],
                 visibility: "pub".to_owned(),
                 owner: None,
+                body_open_line: None,
+                body_close_line: None,
                 tags: vec!["domain:tauri-commands".to_owned()],
                 confidence: 90,
             }],

@@ -5,7 +5,8 @@ use anyhow::{Result, bail};
 use crate::model::CodeMap;
 
 use super::common::{feature_group, print_next, sorted_counts, symbols_matching, text_refs};
-use super::verify_plan::plan_for_map;
+use super::file_ops::symbol_locator::{SymbolFilters, resolve_symbol_in_file_with_filters};
+use super::verify_plan::{plan_for_map, plan_for_symbol};
 
 pub fn risk_for(path: &str, line: &str, kind: Option<&str>) -> Option<&'static str> {
     if matches!(kind, Some("type" | "interface"))
@@ -164,6 +165,41 @@ pub fn print_impact(
         "migrate highest-risk groups",
         "run verify-plan",
     ]);
+    Ok(())
+}
+
+pub fn print_symbol_impact(
+    root: &std::path::Path,
+    map: &CodeMap,
+    path: &std::path::Path,
+    symbol: &str,
+    filters: SymbolFilters<'_>,
+    group: Option<&str>,
+    lines: bool,
+    limit: usize,
+) -> Result<()> {
+    let resolved = resolve_symbol_in_file_with_filters(map, path, symbol, filters, true)?;
+    let query = resolved.symbol.name.as_str();
+    println!("resolved:");
+    println!(
+        "  file: {}",
+        resolved.file.path.to_string_lossy().replace('\\', "/")
+    );
+    println!("  kind: {}", resolved.symbol.kind);
+    println!(
+        "  owner: {}",
+        resolved.symbol.owner.as_deref().unwrap_or("-")
+    );
+    println!(
+        "  range: {}-{}",
+        resolved.symbol.line, resolved.symbol.line_end
+    );
+    print_impact(root, map, query, group, lines, limit)?;
+    let scope = plan_for_symbol(map, path, symbol, filters)?;
+    println!("verify-scope:");
+    for command in &scope.plan.required {
+        println!("  {command}");
+    }
     Ok(())
 }
 

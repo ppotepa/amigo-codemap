@@ -5,9 +5,15 @@ use anyhow::Result;
 use super::command::Command;
 
 mod command_names;
+mod command_spec;
 mod parser;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use command_spec::{
+    COMMAND_SPECS, CommandFamily, PositionalMode, ScanPolicy, command_family,
+    command_positional_mode, command_scan_policy, command_spec_by_name,
+};
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -31,12 +37,18 @@ pub struct Options {
     pub changed_only: bool,
     pub patterns: Vec<String>,
     pub file: Option<PathBuf>,
+    pub name: Option<String>,
+    pub kind: Option<String>,
+    pub owner: Option<String>,
+    pub visibility: Option<String>,
     pub from: Option<PathBuf>,
     pub yaml: Option<String>,
     pub yaml_op: String,
     pub by: Option<String>,
     pub to: Option<PathBuf>,
     pub symbol: Option<String>,
+    pub with_file: Option<PathBuf>,
+    pub with_text: Option<String>,
     pub task: Option<String>,
     pub from_impact: Option<String>,
     pub radius: usize,

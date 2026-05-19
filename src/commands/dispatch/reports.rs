@@ -55,9 +55,16 @@ pub(super) fn run(cli: Cli) -> Result<()> {
             report::symbols::print_symbols(
                 &map,
                 cli.options.query.as_deref(),
-                cli.options.file.as_deref(),
-                cli.options.changed_only,
-                cli.options.metadata,
+                report::symbols::SymbolListFilters {
+                    file_filter: cli.options.file.as_deref(),
+                    name: cli.options.name.as_deref(),
+                    kind: cli.options.kind.as_deref(),
+                    owner: cli.options.owner.as_deref(),
+                    visibility: cli.options.visibility.as_deref(),
+                    changed_only: cli.options.changed_only,
+                    metadata: cli.options.metadata,
+                    json: cli.options.json,
+                },
                 cli.options.limit,
             )?;
         }
@@ -254,6 +261,36 @@ pub(super) fn run(cli: Cli) -> Result<()> {
             );
             print!("{}", report::verify_plan::render_verify_plan(&plan));
         }
+        Command::VerifyScope => {
+            let map = load_report_map(&cli.options)?;
+            let path = cli
+                .options
+                .file
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("verify-scope requires --path"))?;
+            let symbol = cli
+                .options
+                .symbol
+                .as_deref()
+                .or(cli.options.name.as_deref())
+                .ok_or_else(|| anyhow::anyhow!("verify-scope requires --symbol"))?;
+            let scope = report::verify_plan::plan_for_symbol(
+                &map,
+                path,
+                symbol,
+                report::file_ops::symbol_locator::SymbolFilters {
+                    name: cli.options.name.as_deref(),
+                    kind: cli.options.kind.as_deref(),
+                    owner: cli.options.owner.as_deref(),
+                    visibility: cli.options.visibility.as_deref(),
+                },
+            )?;
+            if cli.options.json {
+                println!("{}", serde_json::to_string_pretty(&scope)?);
+            } else {
+                print!("{}", report::verify_plan::render_verify_scope(&scope));
+            }
+        }
         Command::Stale => {
             let map = load_report_map(&cli.options)?;
             report::stale::print_stale(
@@ -266,19 +303,47 @@ pub(super) fn run(cli: Cli) -> Result<()> {
         }
         Command::Impact => {
             let map = load_report_map(&cli.options)?;
-            let query = cli
+            if let Some(symbol) = cli
                 .options
-                .query
+                .symbol
                 .as_deref()
-                .ok_or_else(|| anyhow::anyhow!("impact requires a query"))?;
-            report::impact::print_impact(
-                &cli.options.root,
-                &map,
-                query,
-                cli.options.group.as_deref(),
-                cli.options.lines,
-                cli.options.limit,
-            )?;
+                .or(cli.options.name.as_deref())
+            {
+                let path = cli
+                    .options
+                    .file
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("impact --symbol requires --path"))?;
+                report::impact::print_symbol_impact(
+                    &cli.options.root,
+                    &map,
+                    path,
+                    symbol,
+                    report::file_ops::symbol_locator::SymbolFilters {
+                        name: cli.options.name.as_deref(),
+                        kind: cli.options.kind.as_deref(),
+                        owner: cli.options.owner.as_deref(),
+                        visibility: cli.options.visibility.as_deref(),
+                    },
+                    cli.options.group.as_deref(),
+                    cli.options.lines,
+                    cli.options.limit,
+                )?;
+            } else {
+                let query = cli
+                    .options
+                    .query
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("impact requires a query"))?;
+                report::impact::print_impact(
+                    &cli.options.root,
+                    &map,
+                    query,
+                    cli.options.group.as_deref(),
+                    cli.options.lines,
+                    cli.options.limit,
+                )?;
+            }
         }
         Command::Fallout => {
             report::fallout::print_fallout(cli.options.from.as_ref(), cli.options.limit)?;

@@ -1,3 +1,7 @@
+use std::collections::HashSet;
+
+use super::command_names::parse_command_name;
+use super::command_spec::COMMAND_SPECS;
 use super::{Cli, Command};
 
 #[test]
@@ -230,6 +234,133 @@ fn parses_refactor_candidates_alias() {
 }
 
 #[test]
+fn every_command_variant_has_command_spec() {
+    let expected = [
+        Command::Scan,
+        Command::Refresh,
+        Command::Watch,
+        Command::Status,
+        Command::Changes,
+        Command::Files,
+        Command::Changed,
+        Command::Symbols,
+        Command::Where,
+        Command::Signature,
+        Command::Trace,
+        Command::TraceField,
+        Command::ChangePlan,
+        Command::ExplainFile,
+        Command::Neighbors,
+        Command::ApiSurface,
+        Command::ComponentGraph,
+        Command::TauriGraph,
+        Command::CallsiteCandidates,
+        Command::TodoIndex,
+        Command::RiskIndex,
+        Command::Smells,
+        Command::Compact,
+        Command::Explain,
+        Command::Brief,
+        Command::Find,
+        Command::Scope,
+        Command::Refs,
+        Command::Docs,
+        Command::CommandMap,
+        Command::Anchors,
+        Command::AnchorCheck,
+        Command::Taxonomy,
+        Command::Verify,
+        Command::VerifyPlan,
+        Command::Stale,
+        Command::Impact,
+        Command::Fallout,
+        Command::MovePlan,
+        Command::Dup,
+        Command::TauriCommands,
+        Command::ServiceShape,
+        Command::RegistryCheck,
+        Command::MetadataAudit,
+        Command::DescriptorSkeleton,
+        Command::OperationsSummary,
+        Command::CommitPlan,
+        Command::CommitSummary,
+        Command::AppendPlan,
+        Command::CopyPlan,
+        Command::Slice,
+        Command::DiffScope,
+        Command::DeletePlan,
+        Command::FileMovePlan,
+        Command::RenamePlan,
+        Command::ImportFixPlan,
+        Command::OpenSet,
+        Command::Workset,
+        Command::BarrelCheck,
+        Command::OrphanFiles,
+        Command::ShimCheck,
+        Command::LargeFiles,
+        Command::AssetFileCheck,
+        Command::CaseCheck,
+        Command::TextCheck,
+        Command::PatchPreview,
+        Command::PatchCheck,
+        Command::PatchApply,
+        Command::OpsPreview,
+        Command::OpsCheck,
+        Command::OpsApply,
+        Command::OpsRawPreview,
+        Command::OpsRawCheck,
+        Command::OpsRawApply,
+        Command::OpsSkeleton,
+        Command::OpsSchema,
+        Command::OpsSplit,
+        Command::OpsVerify,
+        Command::OpsSummary,
+        Command::RangeForSymbol,
+        Command::RangeForLines,
+        Command::AnchorRange,
+        Command::CommitFiles,
+        Command::ResolveSymbol,
+        Command::PreviewEdit,
+        Command::CompileEdit,
+        Command::ReplaceSymbol,
+        Command::ReplaceMethodBody,
+        Command::ReplaceRange,
+        Command::InsertBeforeSymbol,
+        Command::InsertAfterSymbol,
+        Command::VerifyScope,
+    ];
+    let spec_commands = COMMAND_SPECS
+        .iter()
+        .map(|spec| spec.command)
+        .collect::<HashSet<_>>();
+
+    for command in expected {
+        assert!(
+            spec_commands.contains(&command),
+            "missing CommandSpec for {command:?}"
+        );
+    }
+    assert_eq!(spec_commands.len(), expected.len());
+}
+
+#[test]
+fn every_command_spec_name_and_alias_parses_back() {
+    let mut names = HashSet::new();
+    for spec in COMMAND_SPECS {
+        assert!(
+            names.insert(spec.name),
+            "duplicate command name {}",
+            spec.name
+        );
+        assert_eq!(parse_command_name(spec.name), Some(spec.command));
+        for alias in spec.aliases {
+            assert!(names.insert(*alias), "duplicate command alias {alias}");
+            assert_eq!(parse_command_name(alias), Some(spec.command));
+        }
+    }
+}
+
+#[test]
 fn parses_workset_from_impact_and_split_hints() {
     let cli = Cli::parse([
         "workset".to_string(),
@@ -317,4 +448,99 @@ fn parses_ops_raw_apply_with_write() {
     assert_eq!(cli.command, Command::OpsRawApply);
     assert_eq!(cli.options.from, Some(std::path::PathBuf::from("ops.raw")));
     assert!(cli.options.write);
+}
+
+#[test]
+fn parses_resolve_symbol_filters() {
+    let cli = Cli::parse([
+        "resolve-symbol".to_string(),
+        "--path".to_string(),
+        "crates/tools/amigo-codemap/src/cli/options/parser.rs".to_string(),
+        "--symbol".to_string(),
+        "parse".to_string(),
+        "--kind".to_string(),
+        "fn".to_string(),
+        "--owner".to_string(),
+        "impl Parser".to_string(),
+        "--visibility".to_string(),
+        "pub".to_string(),
+        "--json".to_string(),
+    ])
+    .expect("parse cli");
+
+    assert_eq!(cli.command, Command::ResolveSymbol);
+    assert_eq!(
+        cli.options.file,
+        Some(std::path::PathBuf::from(
+            "crates/tools/amigo-codemap/src/cli/options/parser.rs"
+        ))
+    );
+    assert_eq!(cli.options.symbol.as_deref(), Some("parse"));
+    assert_eq!(cli.options.kind.as_deref(), Some("fn"));
+    assert_eq!(cli.options.owner.as_deref(), Some("impl Parser"));
+    assert_eq!(cli.options.visibility.as_deref(), Some("pub"));
+    assert!(cli.options.json);
+}
+
+#[test]
+fn parses_replace_range_content_flags() {
+    let cli = Cli::parse([
+        "replace-range".to_string(),
+        "--path".to_string(),
+        "test/main.rs".to_string(),
+        "--start-line".to_string(),
+        "11".to_string(),
+        "--end-line".to_string(),
+        "22".to_string(),
+        "--with-text".to_string(),
+        "this is new code".to_string(),
+        "--write".to_string(),
+    ])
+    .expect("parse cli");
+
+    assert_eq!(cli.command, Command::ReplaceRange);
+    assert_eq!(
+        cli.options.file,
+        Some(std::path::PathBuf::from("test/main.rs"))
+    );
+    assert_eq!(cli.options.start_line, Some(11));
+    assert_eq!(cli.options.end_line, Some(22));
+    assert_eq!(cli.options.with_text.as_deref(), Some("this is new code"));
+    assert!(cli.options.write);
+}
+
+#[test]
+fn parses_compile_edit_with_by() {
+    let cli = Cli::parse([
+        "compile-edit".to_string(),
+        "--by".to_string(),
+        "replace-symbol".to_string(),
+        "--path".to_string(),
+        "crates/tools/amigo-codemap/src/cli/help.rs".to_string(),
+        "--symbol".to_string(),
+        "print_help".to_string(),
+        "--with-text".to_string(),
+        "replacement".to_string(),
+    ])
+    .expect("cli should parse");
+
+    assert_eq!(cli.command, Command::CompileEdit);
+    assert_eq!(cli.options.by.as_deref(), Some("replace-symbol"));
+    assert_eq!(cli.options.symbol.as_deref(), Some("print_help"));
+}
+
+#[test]
+fn parses_verify_scope_symbol_target() {
+    let cli = Cli::parse([
+        "verify-scope".to_string(),
+        "--path".to_string(),
+        "crates/tools/amigo-codemap/src/cli/help.rs".to_string(),
+        "--symbol".to_string(),
+        "print_help".to_string(),
+        "--json".to_string(),
+    ])
+    .expect("cli should parse");
+
+    assert_eq!(cli.command, Command::VerifyScope);
+    assert!(cli.options.json);
 }

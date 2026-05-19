@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum OpsInputFormat {
     Yaml,
     Raw,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OpsPlan {
     #[serde(default = "default_ops_plan_version")]
@@ -30,7 +30,7 @@ const fn default_ops_plan_version() -> u16 {
     1
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "kind")]
 #[serde(deny_unknown_fields)]
 pub enum OpsEntry {

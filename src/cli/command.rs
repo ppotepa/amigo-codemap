@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Command {
     Scan,
     Refresh,
@@ -83,4 +83,13 @@ pub enum Command {
     RangeForLines,
     AnchorRange,
     CommitFiles,
+    ResolveSymbol,
+    PreviewEdit,
+    CompileEdit,
+    ReplaceSymbol,
+    ReplaceMethodBody,
+    ReplaceRange,
+    InsertBeforeSymbol,
+    InsertAfterSymbol,
+    VerifyScope,
 }

@@ -49,6 +49,14 @@ pub(super) fn run(mut cli: Cli) -> Result<()> {
         | Command::RangeForSymbol
         | Command::RangeForLines
         | Command::AnchorRange
+        | Command::ResolveSymbol
+        | Command::PreviewEdit
+        | Command::CompileEdit
+        | Command::ReplaceSymbol
+        | Command::ReplaceMethodBody
+        | Command::ReplaceRange
+        | Command::InsertBeforeSymbol
+        | Command::InsertAfterSymbol
         | Command::RiskIndex
         | Command::TodoIndex
         | Command::Smells

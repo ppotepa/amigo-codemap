@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::{Result, anyhow, bail};
 
 use crate::model::CodeMap;
+use crate::report::file_ops::symbol_locator::SymbolFilters;
 
 use super::super::OpsPlan;
 use super::super::content::op_content;
@@ -229,16 +230,36 @@ pub(super) fn apply_op(
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::super::super::symbol_ops::replace_symbol(
-                root, map, path, symbol, &content, write,
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                &content,
+                write,
             )?;
         }
         OpsEntry::DeleteSymbol { path, symbol, .. } => {
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
-            super::super::super::symbol_ops::delete_symbol(root, map, path, symbol, write)?;
+            super::super::super::symbol_ops::delete_symbol(
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                write,
+            )?;
         }
         OpsEntry::DeleteSymbolIfExists { path, symbol, .. } => {
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
-            match super::super::super::symbol_ops::delete_symbol(root, map, path, symbol, write) {
+            match super::super::super::symbol_ops::delete_symbol(
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                write,
+            ) {
                 Ok(()) => {}
                 Err(error) if error.to_string().contains("symbol not found") => {}
                 Err(error) => return Err(error),
@@ -254,7 +275,13 @@ pub(super) fn apply_op(
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::super::super::symbol_ops::insert_before_symbol(
-                root, map, path, symbol, &content, write,
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                &content,
+                write,
             )?;
         }
         OpsEntry::InsertAfterSymbol {
@@ -267,7 +294,13 @@ pub(super) fn apply_op(
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::super::super::symbol_ops::insert_after_symbol(
-                root, map, path, symbol, &content, write,
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                &content,
+                write,
             )?;
         }
         OpsEntry::ReplaceMethodBody {
@@ -280,7 +313,13 @@ pub(super) fn apply_op(
             let map = map.ok_or_else(|| anyhow!("symbol operation requires codemap"))?;
             let content = op_content(root, plan, content.as_deref(), content_from.as_deref())?;
             super::super::super::symbol_ops::replace_method_body(
-                root, map, path, symbol, &content, write,
+                root,
+                map,
+                path,
+                symbol,
+                SymbolFilters::default(),
+                &content,
+                write,
             )?;
         }
         OpsEntry::AssertSymbolAbsent { .. } | OpsEntry::AssertTextAbsent { .. } => {}

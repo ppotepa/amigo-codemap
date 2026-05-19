@@ -1,8 +1,10 @@
 use std::path::Path;
 
 use anyhow::{Result, bail};
+use serde::Serialize;
 
 use crate::model::{CodeMap, FileEntry, SymbolEntry};
+use crate::query::Query;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolMatchKind {
@@ -24,6 +26,30 @@ pub struct ResolvedSymbol<'a> {
 #[derive(Debug)]
 pub struct SymbolSuggestion<'a> {
     pub symbol: &'a SymbolEntry,
+    pub score: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SymbolFilters<'a> {
+    pub name: Option<&'a str>,
+    pub kind: Option<&'a str>,
+    pub owner: Option<&'a str>,
+    pub visibility: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResolvedSymbolJson {
+    pub path: String,
+    pub symbol: String,
+    pub kind: String,
+    pub visibility: String,
+    pub owner: Option<String>,
+    pub signature: String,
+    pub line: usize,
+    pub line_end: usize,
+    pub body_open_line: Option<usize>,
+    pub body_close_line: Option<usize>,
+    pub match_kind: String,
     pub score: usize,
 }
 
@@ -68,11 +94,25 @@ pub fn resolve_symbol_in_file<'a>(
     path: &Path,
     query: &str,
 ) -> Result<ResolvedSymbol<'a>> {
+    resolve_symbol_in_file_with_filters(map, path, query, SymbolFilters::default(), false)
+}
+
+pub fn resolve_symbol_in_file_with_filters<'a>(
+    map: &'a CodeMap,
+    path: &Path,
+    query: &str,
+    filters: SymbolFilters<'_>,
+    strict: bool,
+) -> Result<ResolvedSymbol<'a>> {
     let file = resolve_file(map, path)?;
     let symbols = symbols_in_file(map, file);
+    let filtered = symbols
+        .into_iter()
+        .filter(|symbol| symbol_matches_filters(symbol, query, filters))
+        .collect::<Vec<_>>();
     let query_norm = normalize_symbol_name(query);
 
-    let mut candidates = symbols
+    let mut candidates = filtered
         .iter()
         .filter_map(|symbol| {
             let (score, kind) = symbol_match_score(symbol, query, &query_norm)?;
@@ -81,8 +121,35 @@ pub fn resolve_symbol_in_file<'a>(
         .collect::<Vec<_>>();
 
     candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.2.name.cmp(&b.2.name)));
+    if strict {
+        let exact = candidates
+            .iter()
+            .filter(|(_, kind, _)| {
+                matches!(kind, SymbolMatchKind::Exact | SymbolMatchKind::Normalized)
+            })
+            .collect::<Vec<_>>();
+        match exact.as_slice() {
+            [] => {
+                let suggestions = symbol_suggestions(&filtered, query, 5);
+                bail!("{}", format_symbol_not_found(path, query, &suggestions));
+            }
+            [item] => {
+                let (score, kind, symbol) = **item;
+                return Ok(ResolvedSymbol {
+                    file,
+                    symbol,
+                    score,
+                    match_kind: kind,
+                });
+            }
+            _ => {
+                bail!("{}", format_symbol_ambiguous(path, query, &exact));
+            }
+        }
+    }
+
     let Some((score, kind, symbol)) = candidates.into_iter().next() else {
-        let suggestions = symbol_suggestions(&symbols, query, 5);
+        let suggestions = symbol_suggestions(&filtered, query, 5);
         bail!("{}", format_symbol_not_found(path, query, &suggestions));
     };
 
@@ -92,6 +159,80 @@ pub fn resolve_symbol_in_file<'a>(
         score,
         match_kind: kind,
     })
+}
+
+pub fn format_symbol_ambiguous(
+    path: &Path,
+    query: &str,
+    matches: &[&(usize, SymbolMatchKind, &&SymbolEntry)],
+) -> String {
+    let mut out = format!(
+        "symbol is ambiguous in {}: {}\nmatches:\n",
+        path.display(),
+        query
+    );
+    for (_, _, symbol) in matches {
+        out.push_str(&format!(
+            "  {} {} visibility={} owner={} line={} body={}-{}\n",
+            symbol.kind,
+            symbol.name,
+            symbol.visibility,
+            symbol.owner.as_deref().unwrap_or("-"),
+            symbol.line,
+            symbol
+                .body_open_line
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-".to_string()),
+            symbol
+                .body_close_line
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-".to_string())
+        ));
+    }
+    let kinds = matches
+        .iter()
+        .map(|(_, _, symbol)| symbol.kind.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let visibilities = matches
+        .iter()
+        .map(|(_, _, symbol)| symbol.visibility.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let owners = matches
+        .iter()
+        .filter_map(|(_, _, symbol)| symbol.owner.as_deref())
+        .collect::<std::collections::BTreeSet<_>>();
+    out.push_str("try:\n");
+    if kinds.len() > 1 {
+        for kind in kinds {
+            out.push_str(&format!("  --kind {kind}\n"));
+        }
+    }
+    if visibilities.len() > 1 {
+        for visibility in visibilities {
+            out.push_str(&format!("  --visibility {visibility}\n"));
+        }
+    }
+    for owner in owners.into_iter().take(5) {
+        out.push_str(&format!("  --owner \"{owner}\"\n"));
+    }
+    out
+}
+
+pub fn resolved_symbol_json(resolved: &ResolvedSymbol<'_>) -> ResolvedSymbolJson {
+    ResolvedSymbolJson {
+        path: slash_path(&resolved.file.path),
+        symbol: resolved.symbol.name.clone(),
+        kind: resolved.symbol.kind.clone(),
+        visibility: resolved.symbol.visibility.clone(),
+        owner: resolved.symbol.owner.clone(),
+        signature: resolved.symbol.signature.clone(),
+        line: resolved.symbol.line,
+        line_end: resolved.symbol.line_end,
+        body_open_line: resolved.symbol.body_open_line,
+        body_close_line: resolved.symbol.body_close_line,
+        match_kind: format!("{:?}", resolved.match_kind).to_ascii_lowercase(),
+        score: resolved.score,
+    }
 }
 
 pub fn format_symbol_not_found(
@@ -136,6 +277,71 @@ fn symbol_match_score(
     }
     let score = symbol_similarity_score(symbol, query, query_norm);
     (score > 0).then_some((score, SymbolMatchKind::Fuzzy))
+}
+
+fn symbol_matches_filters(symbol: &SymbolEntry, query: &str, filters: SymbolFilters<'_>) -> bool {
+    let selector = selector_query(query, filters);
+    if !selector.matches_symbol(
+        &symbol.name,
+        &symbol.kind,
+        &symbol.visibility,
+        symbol.owner.as_deref(),
+        &symbol.tags,
+    ) {
+        return false;
+    }
+    if let Some(name) = filters.name
+        && normalize_symbol_name(&symbol.name) != normalize_symbol_name(name)
+    {
+        return false;
+    }
+    if let Some(kind) = filters.kind
+        && !symbol.kind.eq_ignore_ascii_case(kind)
+    {
+        return false;
+    }
+    if let Some(owner) = filters.owner
+        && !symbol.owner.as_deref().is_some_and(|value| {
+            value
+                .to_ascii_lowercase()
+                .contains(&owner.to_ascii_lowercase())
+        })
+    {
+        return false;
+    }
+    if let Some(visibility) = filters.visibility
+        && !symbol.visibility.eq_ignore_ascii_case(visibility)
+    {
+        return false;
+    }
+    if let Some(name) = filters.name {
+        return normalize_symbol_name(&symbol.name) == normalize_symbol_name(name);
+    }
+    if !query.is_empty() {
+        return symbol_match_score(symbol, query, &normalize_symbol_name(query)).is_some();
+    }
+    true
+}
+
+fn selector_query(query: &str, filters: SymbolFilters<'_>) -> Query {
+    let mut terms = Vec::new();
+    if !query.trim().is_empty() {
+        terms.push(query.trim().to_string());
+    }
+    if let Some(name) = filters.name {
+        terms.push(format!("name:{name}"));
+    }
+    if let Some(kind) = filters.kind {
+        terms.push(format!("kind:{kind}"));
+    }
+    if let Some(owner) = filters.owner {
+        terms.push(format!("owner:{owner}"));
+    }
+    if let Some(visibility) = filters.visibility {
+        terms.push(format!("visibility:{visibility}"));
+    }
+    let joined = terms.join(",");
+    Query::parse((!joined.is_empty()).then_some(joined.as_str()))
 }
 
 fn symbol_similarity_score(symbol: &SymbolEntry, query: &str, query_norm: &str) -> usize {
@@ -187,4 +393,8 @@ fn symbol_tokens(value: &str) -> std::collections::BTreeSet<String> {
         }
     }
     out
+}
+
+fn slash_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }

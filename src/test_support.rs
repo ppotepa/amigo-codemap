@@ -48,6 +48,8 @@ pub fn test_symbol(name: &str, file_id: &str, line: usize) -> SymbolEntry {
         generics: Vec::new(),
         visibility: "private".to_string(),
         owner: None,
+        body_open_line: None,
+        body_close_line: None,
         tags: vec!["kind:fn".to_string(), "visibility:private".to_string()],
         confidence: 80,
     }

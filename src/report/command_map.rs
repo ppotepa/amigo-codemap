@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 
+use crate::cli::{COMMAND_SPECS, command_family, command_spec_by_name};
 use crate::report::file_ops::model::{FileOpReport, NextAction, Risk, RiskLevel, print_report};
 
 #[derive(Debug, Clone, Copy)]
@@ -700,18 +701,57 @@ const COMMANDS: &[CommandDescriptor] = &[
     },
 ];
 
+fn generated_descriptor(command: crate::cli::Command) -> Option<CommandDescriptor> {
+    let spec = COMMAND_SPECS.iter().find(|spec| spec.command == command)?;
+
+    Some(CommandDescriptor {
+        name: spec.name,
+        category: command_family(command).label(),
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: MAIN_PATH,
+        docs_paths: DOC_PATHS,
+        test_paths: &["crates/tools/amigo-codemap/src/cli/options/tests.rs"],
+        related: spec.aliases,
+    })
+}
+
+fn descriptor_for_name(name: &str) -> Option<CommandDescriptor> {
+    COMMANDS
+        .iter()
+        .find(|command| command.name == name)
+        .copied()
+        .or_else(|| command_spec_by_name(name).and_then(|spec| generated_descriptor(spec.command)))
+}
+
+fn matching_descriptors(query: &str) -> Vec<CommandDescriptor> {
+    let mut matches = COMMANDS
+        .iter()
+        .filter(|command| command.name.contains(query))
+        .copied()
+        .collect::<Vec<_>>();
+
+    for spec in COMMAND_SPECS {
+        if !spec.name.contains(query) || matches.iter().any(|command| command.name == spec.name) {
+            continue;
+        }
+        if let Some(command) = generated_descriptor(spec.command) {
+            matches.push(command);
+        }
+    }
+
+    matches.sort_by(|left, right| left.name.cmp(right.name));
+    matches
+}
+
 pub fn print_command_map(query: &str) -> Result<()> {
     if query.trim().is_empty() {
         bail!("command-map requires a command query");
     }
 
     let query = query.trim();
-    let exact = COMMANDS.iter().find(|command| command.name == query);
-    let mut matches = COMMANDS
-        .iter()
-        .filter(|command| command.name.contains(query))
-        .collect::<Vec<_>>();
-    matches.sort_by(|left, right| left.name.cmp(right.name));
+    let exact = descriptor_for_name(query);
+    let matches = matching_descriptors(query);
 
     let Some(command) = exact.or_else(|| matches.first().copied()) else {
         print_report(&FileOpReport {
@@ -801,7 +841,8 @@ pub fn print_command_map(query: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::COMMANDS;
+    use super::{COMMANDS, descriptor_for_name};
+    use crate::cli::COMMAND_SPECS;
 
     #[test]
     fn catalog_contains_append_plan() {
@@ -917,5 +958,16 @@ mod tests {
     #[test]
     fn catalog_contains_smells() {
         assert!(COMMANDS.iter().any(|command| command.name == "smells"));
+    }
+
+    #[test]
+    fn generated_catalog_covers_every_command_spec() {
+        for spec in COMMAND_SPECS {
+            assert!(
+                descriptor_for_name(spec.name).is_some(),
+                "missing command-map descriptor for {}",
+                spec.name
+            );
+        }
     }
 }

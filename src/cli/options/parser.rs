@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 
 use super::command_names::parse_command_name;
 use super::{Cli, DaemonMode, Options};
-use crate::cli::Command;
+use crate::cli::{Command, PositionalMode, command_positional_mode};
 
 pub(super) fn parse<I>(args: I) -> Result<Cli>
 where
@@ -31,12 +31,18 @@ where
     let mut changed_only = false;
     let mut patterns = Vec::new();
     let mut file = None;
+    let mut name = None;
+    let mut kind = None;
+    let mut owner = None;
+    let mut visibility = None;
     let mut from = None;
     let mut yaml = None;
     let mut yaml_op = "replace_range".to_string();
     let mut by = None;
     let mut to = None;
     let mut symbol = None;
+    let mut with_file = None;
+    let mut with_text = None;
     let mut task = None;
     let mut from_impact = None;
     let mut radius = 32usize;
@@ -77,154 +83,22 @@ where
     while index < args.len() {
         let arg = &args[index];
         if command.is_some() && !arg.starts_with('-') && parse_command_name(arg).is_some() {
-            match command {
-                Some(
-                    Command::Find
-                    | Command::Symbols
-                    | Command::Where
-                    | Command::Signature
-                    | Command::Trace
-                    | Command::TraceField
-                    | Command::ChangePlan
-                    | Command::ExplainFile
-                    | Command::Neighbors
-                    | Command::CallsiteCandidates
-                    | Command::Scope
-                    | Command::Refs
-                    | Command::Docs
-                    | Command::CommandMap
-                    | Command::Anchors
-                    | Command::Impact
-                    | Command::MovePlan
-                    | Command::Dup
-                    | Command::ServiceShape
-                    | Command::RegistryCheck
-                    | Command::MetadataAudit
-                    | Command::DescriptorSkeleton
-                    | Command::AppendPlan
-                    | Command::CopyPlan
-                    | Command::Slice
-                    | Command::DeletePlan
-                    | Command::FileMovePlan
-                    | Command::RenamePlan
-                    | Command::OpenSet
-                    | Command::Workset
-                    | Command::BarrelCheck
-                    | Command::OrphanFiles
-                    | Command::AssetFileCheck
-                    | Command::PatchPreview
-                    | Command::PatchCheck
-                    | Command::PatchApply
-                    | Command::OpsPreview
-                    | Command::OpsCheck
-                    | Command::OpsApply
-                    | Command::OpsSkeleton
-                    | Command::OpsSchema
-                    | Command::OpsSplit
-                    | Command::OpsVerify
-                    | Command::OpsSummary
-                    | Command::RangeForSymbol
-                    | Command::RangeForLines
-                    | Command::AnchorRange
-                    | Command::CommitFiles,
-                ) if query.is_none() => {
-                    query = Some(arg.to_owned());
-                    index += 1;
-                    continue;
-                }
-                Some(Command::Verify) => {
-                    verify_args.push(arg.to_owned());
-                    index += 1;
-                    continue;
-                }
-                _ => bail!("unexpected positional `{arg}`"),
-            }
+            consume_positional(
+                command,
+                arg,
+                &mut query,
+                &mut verify_args,
+                &mut start_line,
+                &mut end_line,
+            )?;
+            index += 1;
+            continue;
         }
 
         match arg.as_str() {
-            "scan" => command = Some(Command::Scan),
-            "refresh" => command = Some(Command::Refresh),
-            "watch" => command = Some(Command::Watch),
-            "status" => command = Some(Command::Status),
-            "changes" => command = Some(Command::Changes),
-            "files" => command = Some(Command::Files),
-            "changed" => command = Some(Command::Changed),
-            "symbols" => command = Some(Command::Symbols),
-            "where" => command = Some(Command::Where),
-            "signature" => command = Some(Command::Signature),
-            "trace" => command = Some(Command::Trace),
-            "trace-field" => command = Some(Command::TraceField),
-            "change-plan" => command = Some(Command::ChangePlan),
-            "explain-file" => command = Some(Command::ExplainFile),
-            "neighbors" => command = Some(Command::Neighbors),
-            "api-surface" => command = Some(Command::ApiSurface),
-            "component-graph" => command = Some(Command::ComponentGraph),
-            "tauri-graph" => command = Some(Command::TauriGraph),
-            "callsite-candidates" => command = Some(Command::CallsiteCandidates),
-            "todo-index" => command = Some(Command::TodoIndex),
-            "risk-index" => command = Some(Command::RiskIndex),
-            "smells" | "refactor-candidates" => command = Some(Command::Smells),
-            "compact" => command = Some(Command::Compact),
-            "brief" => command = Some(Command::Brief),
-            "find" => command = Some(Command::Find),
-            "scope" => command = Some(Command::Scope),
-            "refs" => command = Some(Command::Refs),
-            "docs" | "readme-coverage" => command = Some(Command::Docs),
-            "command-map" => command = Some(Command::CommandMap),
-            "anchors" => command = Some(Command::Anchors),
-            "anchor-check" => command = Some(Command::AnchorCheck),
-            "taxonomy" => command = Some(Command::Taxonomy),
-            "verify" => command = Some(Command::Verify),
-            "verify-plan" => command = Some(Command::VerifyPlan),
-            "stale" => command = Some(Command::Stale),
-            "impact" => command = Some(Command::Impact),
-            "fallout" => command = Some(Command::Fallout),
-            "move-plan" => command = Some(Command::MovePlan),
-            "dup" => command = Some(Command::Dup),
-            "tauri-commands" => command = Some(Command::TauriCommands),
-            "service-shape" => command = Some(Command::ServiceShape),
-            "registry-check" => command = Some(Command::RegistryCheck),
-            "metadata-audit" => command = Some(Command::MetadataAudit),
-            "descriptor-skeleton" => command = Some(Command::DescriptorSkeleton),
-            "operations-summary" => command = Some(Command::OperationsSummary),
-            "commit-plan" => command = Some(Command::CommitPlan),
-            "commit-summary" => command = Some(Command::CommitSummary),
-            "append-plan" => command = Some(Command::AppendPlan),
-            "copy-plan" => command = Some(Command::CopyPlan),
-            "slice" => command = Some(Command::Slice),
-            "diff-scope" => command = Some(Command::DiffScope),
-            "delete-plan" => command = Some(Command::DeletePlan),
-            "file-move-plan" => command = Some(Command::FileMovePlan),
-            "rename-plan" => command = Some(Command::RenamePlan),
-            "import-fix-plan" => command = Some(Command::ImportFixPlan),
-            "open-set" => command = Some(Command::OpenSet),
-            "workset" => command = Some(Command::Workset),
-            "barrel-check" => command = Some(Command::BarrelCheck),
-            "orphan-files" => command = Some(Command::OrphanFiles),
-            "shim-check" => command = Some(Command::ShimCheck),
-            "large-files" => command = Some(Command::LargeFiles),
-            "asset-file-check" => command = Some(Command::AssetFileCheck),
-            "case-check" => command = Some(Command::CaseCheck),
-            "text-check" => command = Some(Command::TextCheck),
-            "patch-preview" => command = Some(Command::PatchPreview),
-            "patch-check" => command = Some(Command::PatchCheck),
-            "patch-apply" => command = Some(Command::PatchApply),
-            "ops-preview" => command = Some(Command::OpsPreview),
-            "ops-check" => command = Some(Command::OpsCheck),
-            "ops-apply" => command = Some(Command::OpsApply),
-            "ops-raw-preview" => command = Some(Command::OpsRawPreview),
-            "ops-raw-check" => command = Some(Command::OpsRawCheck),
-            "ops-raw-apply" => command = Some(Command::OpsRawApply),
-            "ops-skeleton" => command = Some(Command::OpsSkeleton),
-            "ops-schema" => command = Some(Command::OpsSchema),
-            "ops-split" => command = Some(Command::OpsSplit),
-            "ops-verify" => command = Some(Command::OpsVerify),
-            "ops-summary" => command = Some(Command::OpsSummary),
-            "range-for-symbol" => command = Some(Command::RangeForSymbol),
-            "range-for-lines" => command = Some(Command::RangeForLines),
-            "anchor-range" => command = Some(Command::AnchorRange),
-            "commit-files" => command = Some(Command::CommitFiles),
-            "explain" | "--help" | "-h" => command = Some(Command::Explain),
+            value if parse_command_name(value).is_some() => {
+                command = parse_command_name(value);
+            }
             "--root" => {
                 index += 1;
                 root = PathBuf::from(required_value(&args, index, "--root")?);
@@ -245,6 +119,14 @@ where
             "--group" => {
                 index += 1;
                 group = Some(required_value(&args, index, "--group")?);
+            }
+            "--start-line" => {
+                index += 1;
+                start_line = Some(required_value(&args, index, "--start-line")?.parse::<usize>()?);
+            }
+            "--end-line" => {
+                index += 1;
+                end_line = Some(required_value(&args, index, "--end-line")?.parse::<usize>()?);
             }
             "--query" => {
                 index += 1;
@@ -277,6 +159,26 @@ where
                 index += 1;
                 file = Some(PathBuf::from(required_value(&args, index, "--file")?));
             }
+            "--path" => {
+                index += 1;
+                file = Some(PathBuf::from(required_value(&args, index, "--path")?));
+            }
+            "--name" => {
+                index += 1;
+                name = Some(required_value(&args, index, "--name")?);
+            }
+            "--kind" => {
+                index += 1;
+                kind = Some(required_value(&args, index, "--kind")?);
+            }
+            "--owner" => {
+                index += 1;
+                owner = Some(required_value(&args, index, "--owner")?);
+            }
+            "--visibility" => {
+                index += 1;
+                visibility = Some(required_value(&args, index, "--visibility")?);
+            }
             "--from" => {
                 index += 1;
                 from = Some(PathBuf::from(required_value(&args, index, "--from")?));
@@ -300,6 +202,14 @@ where
             "--symbol" => {
                 index += 1;
                 symbol = Some(required_value(&args, index, "--symbol")?);
+            }
+            "--with-file" => {
+                index += 1;
+                with_file = Some(PathBuf::from(required_value(&args, index, "--with-file")?));
+            }
+            "--with-text" => {
+                index += 1;
+                with_text = Some(required_value(&args, index, "--with-text")?);
             }
             "--task" => {
                 index += 1;
@@ -408,71 +318,14 @@ where
                 expect_absent.push(required_value(&args, index, "--expect-absent")?);
             }
             unknown if unknown.starts_with('-') => bail!("unknown flag `{unknown}`"),
-            value => match command {
-                Some(
-                    Command::Find
-                    | Command::Symbols
-                    | Command::Where
-                    | Command::Signature
-                    | Command::Trace
-                    | Command::TraceField
-                    | Command::ChangePlan
-                    | Command::ExplainFile
-                    | Command::Neighbors
-                    | Command::CallsiteCandidates
-                    | Command::Scope
-                    | Command::Refs
-                    | Command::Docs
-                    | Command::CommandMap
-                    | Command::Anchors
-                    | Command::Impact
-                    | Command::MovePlan
-                    | Command::Dup
-                    | Command::ServiceShape
-                    | Command::RegistryCheck
-                    | Command::MetadataAudit
-                    | Command::DescriptorSkeleton
-                    | Command::Slice
-                    | Command::AppendPlan
-                    | Command::CopyPlan
-                    | Command::DeletePlan
-                    | Command::FileMovePlan
-                    | Command::RenamePlan
-                    | Command::OpenSet
-                    | Command::Workset
-                    | Command::BarrelCheck
-                    | Command::OrphanFiles
-                    | Command::AssetFileCheck
-                    | Command::PatchPreview
-                    | Command::PatchCheck
-                    | Command::PatchApply
-                    | Command::OpsPreview
-                    | Command::OpsCheck
-                    | Command::OpsApply
-                    | Command::OpsRawPreview
-                    | Command::OpsRawCheck
-                    | Command::OpsRawApply
-                    | Command::OpsSkeleton
-                    | Command::OpsSchema
-                    | Command::OpsSplit
-                    | Command::OpsVerify
-                    | Command::OpsSummary
-                    | Command::RangeForSymbol
-                    | Command::RangeForLines
-                    | Command::AnchorRange
-                    | Command::CommitFiles,
-                ) if query.is_none() => {
-                    query = Some(value.to_owned());
-                }
-                Some(Command::RangeForLines) if start_line.is_none() => {
-                    start_line = Some(value.parse::<usize>()?);
-                }
-                Some(Command::RangeForLines) if end_line.is_none() => {
-                    end_line = Some(value.parse::<usize>()?);
-                }
-                Some(Command::Verify) => verify_args.push(value.to_owned()),
-                _ => bail!("unknown command `{value}`"),
-            },
+            value => consume_positional(
+                command,
+                value,
+                &mut query,
+                &mut verify_args,
+                &mut start_line,
+                &mut end_line,
+            )?,
         }
         index += 1;
     }
@@ -503,12 +356,18 @@ where
             changed_only,
             patterns,
             file,
+            name,
+            kind,
+            owner,
+            visibility,
             from,
             yaml,
             yaml_op,
             by,
             to,
             symbol,
+            with_file,
+            with_text,
             task,
             from_impact,
             radius,
@@ -551,4 +410,35 @@ fn required_value(args: &[String], index: usize, flag: &str) -> Result<String> {
     args.get(index)
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("{flag} requires a value"))
+}
+
+fn consume_positional(
+    command: Option<Command>,
+    value: &str,
+    query: &mut Option<String>,
+    verify_args: &mut Vec<String>,
+    start_line: &mut Option<usize>,
+    end_line: &mut Option<usize>,
+) -> Result<()> {
+    match command.map(command_positional_mode) {
+        Some(PositionalMode::Query) if query.is_none() => {
+            *query = Some(value.to_owned());
+            Ok(())
+        }
+        Some(PositionalMode::VerifyArgs) => {
+            verify_args.push(value.to_owned());
+            Ok(())
+        }
+        Some(PositionalMode::RangeLines) if start_line.is_none() => {
+            *start_line = Some(value.parse::<usize>()?);
+            Ok(())
+        }
+        Some(PositionalMode::RangeLines) if end_line.is_none() => {
+            *end_line = Some(value.parse::<usize>()?);
+            Ok(())
+        }
+        Some(PositionalMode::Query) => bail!("unexpected positional `{value}`"),
+        Some(PositionalMode::RangeLines) => bail!("unexpected extra range line `{value}`"),
+        Some(PositionalMode::None) | None => bail!("unknown command `{value}`"),
+    }
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+mod context;
 mod dispatch;
 
 pub(super) fn run(cli: crate::cli::Cli) -> Result<()> {

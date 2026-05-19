@@ -1,9 +1,38 @@
-use anyhow::Result;
+use std::fs;
+use std::path::PathBuf;
+
+use anyhow::{Result, anyhow, bail};
+use serde::Serialize;
 
 use crate::cli::{Cli, Command};
 use crate::load_report_map;
 use crate::ops_input_format;
 use crate::report;
+use crate::report::file_ops::ops_plan::OpsEntry;
+use crate::report::file_ops::symbol_locator;
+use crate::report::file_ops::symbol_locator::SymbolFilters;
+
+#[derive(Debug, Clone)]
+enum EditKind {
+    ReplaceSymbol,
+    ReplaceMethodBody,
+    ReplaceRange,
+    InsertBeforeSymbol,
+    InsertAfterSymbol,
+}
+
+#[derive(Debug, Clone)]
+enum EditPayload {
+    Inline(String),
+    FromFile(PathBuf),
+}
+
+#[derive(Debug, Serialize)]
+struct CompiledEdit {
+    op: OpsEntry,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolved: Option<symbol_locator::ResolvedSymbolJson>,
+}
 
 pub(super) fn run(cli: Cli) -> Result<()> {
     match cli.command {
@@ -420,6 +449,7 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 &map,
                 query,
                 cli.options.limit,
+                cli.options.json,
             )?;
         }
         Command::RangeForLines => {
@@ -505,8 +535,353 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 cli.options.limit,
             )?;
         }
+        Command::ResolveSymbol => {
+            let map = load_report_map(&cli.options)?;
+            let path = required_path(&cli)?;
+            let symbol = required_symbol(&cli)?;
+            let resolved = symbol_locator::resolve_symbol_in_file_with_filters(
+                &map,
+                path,
+                symbol,
+                selector_filters(&cli),
+                true,
+            )?;
+            if cli.options.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&symbol_locator::resolved_symbol_json(&resolved))?
+                );
+            } else {
+                let json = symbol_locator::resolved_symbol_json(&resolved);
+                println!("{} {}", json.kind, json.symbol);
+                println!("  file: {}", json.path);
+                println!("  range: {}-{}", json.line, json.line_end);
+                println!(
+                    "  body: {}-{}",
+                    json.body_open_line
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                    json.body_close_line
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".to_string())
+                );
+                println!("  visibility: {}", json.visibility);
+                println!("  owner: {}", json.owner.as_deref().unwrap_or("-"));
+                println!("  signature: {}", json.signature);
+                println!("  match-kind: {}", json.match_kind);
+                println!("  score: {}", json.score);
+            }
+        }
+        Command::PreviewEdit => {
+            let map = load_report_map(&cli.options)?;
+            let compiled = compile_edit(&cli, &map)?;
+            println!("{}", serde_json::to_string_pretty(&compiled)?);
+            preview_compiled_edit(&cli, &map, &compiled)?;
+        }
+        Command::CompileEdit => {
+            let map = load_report_map(&cli.options)?;
+            let compiled = compile_edit(&cli, &map)?;
+            println!("{}", serde_json::to_string_pretty(&compiled)?);
+        }
+        Command::ReplaceSymbol => {
+            let map = load_report_map(&cli.options)?;
+            let path = required_path(&cli)?;
+            let symbol = required_symbol(&cli)?;
+            let content = required_edit_content(&cli)?;
+            report::file_ops::symbol_ops::replace_symbol(
+                &cli.options.root,
+                &map,
+                path,
+                symbol,
+                selector_filters(&cli),
+                &content,
+                cli.options.write,
+            )?;
+        }
+        Command::ReplaceMethodBody => {
+            let map = load_report_map(&cli.options)?;
+            let path = required_path(&cli)?;
+            let symbol = required_symbol(&cli)?;
+            let content = required_edit_content(&cli)?;
+            report::file_ops::symbol_ops::replace_method_body(
+                &cli.options.root,
+                &map,
+                path,
+                symbol,
+                selector_filters(&cli),
+                &content,
+                cli.options.write,
+            )?;
+        }
+        Command::ReplaceRange => {
+            let path = required_path(&cli)?;
+            let start_line = cli.options.start_line.ok_or_else(|| {
+                anyhow!("replace-range requires --start-line or first line bound")
+            })?;
+            let end_line = cli
+                .options
+                .end_line
+                .ok_or_else(|| anyhow!("replace-range requires --end-line or second line bound"))?;
+            let content = required_edit_content(&cli)?;
+            report::file_ops::symbol_ops::replace_range(
+                &cli.options.root,
+                path,
+                start_line,
+                end_line,
+                &content,
+                cli.options.write,
+            )?;
+        }
+        Command::InsertBeforeSymbol => {
+            let map = load_report_map(&cli.options)?;
+            let path = required_path(&cli)?;
+            let symbol = required_symbol(&cli)?;
+            let content = required_edit_content(&cli)?;
+            report::file_ops::symbol_ops::insert_before_symbol(
+                &cli.options.root,
+                &map,
+                path,
+                symbol,
+                selector_filters(&cli),
+                &content,
+                cli.options.write,
+            )?;
+        }
+        Command::InsertAfterSymbol => {
+            let map = load_report_map(&cli.options)?;
+            let path = required_path(&cli)?;
+            let symbol = required_symbol(&cli)?;
+            let content = required_edit_content(&cli)?;
+            report::file_ops::symbol_ops::insert_after_symbol(
+                &cli.options.root,
+                &map,
+                path,
+                symbol,
+                selector_filters(&cli),
+                &content,
+                cli.options.write,
+            )?;
+        }
         _ => unreachable!("non-file-op command routed to file-ops dispatcher"),
     }
 
+    Ok(())
+}
+
+fn required_path(cli: &Cli) -> Result<&std::path::Path> {
+    cli.options
+        .file
+        .as_deref()
+        .ok_or_else(|| anyhow!("command requires --path"))
+}
+
+fn required_symbol<'a>(cli: &'a Cli) -> Result<&'a str> {
+    cli.options
+        .symbol
+        .as_deref()
+        .or(cli.options.name.as_deref())
+        .ok_or_else(|| anyhow!("command requires --symbol"))
+}
+
+fn selector_filters(cli: &Cli) -> SymbolFilters<'_> {
+    SymbolFilters {
+        name: cli.options.name.as_deref(),
+        kind: cli.options.kind.as_deref(),
+        owner: cli.options.owner.as_deref(),
+        visibility: cli.options.visibility.as_deref(),
+    }
+}
+
+fn required_edit_content(cli: &Cli) -> Result<String> {
+    match (
+        cli.options.with_text.as_deref(),
+        cli.options.with_file.as_deref(),
+    ) {
+        (Some(_), Some(_)) => bail!("use only one of --with-text or --with-file"),
+        (Some(text), None) => Ok(text.to_string()),
+        (None, Some(path)) => Ok(fs::read_to_string(path)?),
+        (None, None) => bail!("command requires --with-text or --with-file"),
+    }
+}
+
+fn required_edit_payload(cli: &Cli) -> Result<EditPayload> {
+    match (
+        cli.options.with_text.as_deref(),
+        cli.options.with_file.as_deref(),
+    ) {
+        (Some(_), Some(_)) => bail!("use only one of --with-text or --with-file"),
+        (Some(text), None) => Ok(EditPayload::Inline(text.to_string())),
+        (None, Some(path)) => Ok(EditPayload::FromFile(path.to_path_buf())),
+        (None, None) => bail!("command requires --with-text or --with-file"),
+    }
+}
+
+fn parse_edit_kind(cli: &Cli) -> Result<EditKind> {
+    match cli.options.by.as_deref() {
+        Some("replace-symbol") => Ok(EditKind::ReplaceSymbol),
+        Some("replace-method-body") => Ok(EditKind::ReplaceMethodBody),
+        Some("replace-range") => Ok(EditKind::ReplaceRange),
+        Some("insert-before-symbol") => Ok(EditKind::InsertBeforeSymbol),
+        Some("insert-after-symbol") => Ok(EditKind::InsertAfterSymbol),
+        Some(other) => bail!("unsupported --by edit kind: {other}"),
+        None => bail!(
+            "command requires --by <replace-symbol|replace-method-body|replace-range|insert-before-symbol|insert-after-symbol>"
+        ),
+    }
+}
+
+fn compile_edit(cli: &Cli, map: &crate::model::CodeMap) -> Result<CompiledEdit> {
+    let kind = parse_edit_kind(cli)?;
+    let path = required_path(cli)?.to_path_buf();
+    let payload = required_edit_payload(cli)?;
+    let (content, content_from) = payload_fields(&payload);
+    let resolved = match kind {
+        EditKind::ReplaceRange => None,
+        _ => {
+            let symbol = required_symbol(cli)?;
+            let resolved = symbol_locator::resolve_symbol_in_file_with_filters(
+                map,
+                &path,
+                symbol,
+                selector_filters(cli),
+                true,
+            )?;
+            Some(symbol_locator::resolved_symbol_json(&resolved))
+        }
+    };
+    let op = match kind {
+        EditKind::ReplaceSymbol => OpsEntry::ReplaceSymbol {
+            path,
+            symbol: required_symbol(cli)?.to_string(),
+            content,
+            content_from,
+            expected_hash: None,
+            context_before: None,
+            context_after: None,
+            id: None,
+        },
+        EditKind::ReplaceMethodBody => OpsEntry::ReplaceMethodBody {
+            path,
+            symbol: required_symbol(cli)?.to_string(),
+            content,
+            content_from,
+            expected_hash: None,
+            id: None,
+        },
+        EditKind::ReplaceRange => OpsEntry::ReplaceRange {
+            path,
+            start_line: cli
+                .options
+                .start_line
+                .ok_or_else(|| anyhow!("replace-range requires --start-line"))?,
+            end_line: cli
+                .options
+                .end_line
+                .ok_or_else(|| anyhow!("replace-range requires --end-line"))?,
+            content,
+            content_from,
+            expected_hash: None,
+            context_before: None,
+            context_after: None,
+            id: None,
+        },
+        EditKind::InsertBeforeSymbol => OpsEntry::InsertBeforeSymbol {
+            path,
+            symbol: required_symbol(cli)?.to_string(),
+            content,
+            content_from,
+            expected_hash: None,
+            id: None,
+        },
+        EditKind::InsertAfterSymbol => OpsEntry::InsertAfterSymbol {
+            path,
+            symbol: required_symbol(cli)?.to_string(),
+            content,
+            content_from,
+            expected_hash: None,
+            id: None,
+        },
+    };
+    Ok(CompiledEdit { op, resolved })
+}
+
+fn payload_fields(payload: &EditPayload) -> (Option<String>, Option<PathBuf>) {
+    match payload {
+        EditPayload::Inline(text) => (Some(text.clone()), None),
+        EditPayload::FromFile(path) => (None, Some(path.clone())),
+    }
+}
+
+fn preview_compiled_edit(
+    cli: &Cli,
+    map: &crate::model::CodeMap,
+    compiled: &CompiledEdit,
+) -> Result<()> {
+    println!("preview:");
+    let path = required_path(cli)?;
+    let filters = selector_filters(cli);
+    let content = required_edit_content(cli)?;
+    match (&compiled.op, parse_edit_kind(cli)?) {
+        (OpsEntry::ReplaceSymbol { symbol, .. }, EditKind::ReplaceSymbol) => {
+            report::file_ops::symbol_ops::replace_symbol(
+                &cli.options.root,
+                map,
+                path,
+                symbol,
+                filters,
+                &content,
+                false,
+            )?
+        }
+        (OpsEntry::ReplaceMethodBody { symbol, .. }, EditKind::ReplaceMethodBody) => {
+            report::file_ops::symbol_ops::replace_method_body(
+                &cli.options.root,
+                map,
+                path,
+                symbol,
+                filters,
+                &content,
+                false,
+            )?
+        }
+        (
+            OpsEntry::ReplaceRange {
+                start_line,
+                end_line,
+                ..
+            },
+            EditKind::ReplaceRange,
+        ) => report::file_ops::symbol_ops::replace_range(
+            &cli.options.root,
+            path,
+            *start_line,
+            *end_line,
+            &content,
+            false,
+        )?,
+        (OpsEntry::InsertBeforeSymbol { symbol, .. }, EditKind::InsertBeforeSymbol) => {
+            report::file_ops::symbol_ops::insert_before_symbol(
+                &cli.options.root,
+                map,
+                path,
+                symbol,
+                filters,
+                &content,
+                false,
+            )?
+        }
+        (OpsEntry::InsertAfterSymbol { symbol, .. }, EditKind::InsertAfterSymbol) => {
+            report::file_ops::symbol_ops::insert_after_symbol(
+                &cli.options.root,
+                map,
+                path,
+                symbol,
+                filters,
+                &content,
+                false,
+            )?
+        }
+        _ => bail!("compiled edit does not match requested preview"),
+    }
     Ok(())
 }

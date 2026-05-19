@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry, SymbolEntry};
+use crate::query::Query;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextRef {
@@ -55,11 +56,17 @@ pub fn symbols_by_file_id(map: &CodeMap) -> BTreeMap<&str, Vec<&SymbolEntry>> {
 }
 
 pub fn symbols_matching<'a>(map: &'a CodeMap, query: &str) -> Vec<&'a SymbolEntry> {
-    let query_lower = query.to_ascii_lowercase();
+    let query = Query::parse(Some(query));
     map.symbols
         .iter()
         .filter(|symbol| {
-            symbol.name == query || symbol.name.to_ascii_lowercase().contains(&query_lower)
+            query.matches_symbol(
+                &symbol.name,
+                &symbol.kind,
+                &symbol.visibility,
+                symbol.owner.as_deref(),
+                &symbol.tags,
+            )
         })
         .collect()
 }

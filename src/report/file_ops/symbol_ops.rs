@@ -4,16 +4,18 @@ use std::path::Path;
 use anyhow::{Result, bail};
 
 use crate::model::{CodeMap, SymbolEntry};
+use crate::report::file_ops::symbol_locator::SymbolFilters;
 
 pub fn replace_symbol(
     root: &Path,
     map: &CodeMap,
     path: &Path,
     symbol_name: &str,
+    filters: SymbolFilters<'_>,
     content: &str,
     write: bool,
 ) -> Result<()> {
-    let symbol = resolve_symbol(map, path, symbol_name)?;
+    let symbol = resolve_symbol(map, path, symbol_name, filters)?;
     replace_line_range(
         root,
         path,
@@ -29,9 +31,10 @@ pub fn delete_symbol(
     map: &CodeMap,
     path: &Path,
     symbol_name: &str,
+    filters: SymbolFilters<'_>,
     write: bool,
 ) -> Result<()> {
-    let symbol = resolve_symbol(map, path, symbol_name)?;
+    let symbol = resolve_symbol(map, path, symbol_name, filters)?;
     replace_line_range(root, path, symbol.line, symbol.line_end, None, write)
 }
 
@@ -40,10 +43,11 @@ pub fn insert_before_symbol(
     map: &CodeMap,
     path: &Path,
     symbol_name: &str,
+    filters: SymbolFilters<'_>,
     content: &str,
     write: bool,
 ) -> Result<()> {
-    let symbol = resolve_symbol(map, path, symbol_name)?;
+    let symbol = resolve_symbol(map, path, symbol_name, filters)?;
     insert_at_line(root, path, symbol.line, content, write)
 }
 
@@ -52,10 +56,11 @@ pub fn insert_after_symbol(
     map: &CodeMap,
     path: &Path,
     symbol_name: &str,
+    filters: SymbolFilters<'_>,
     content: &str,
     write: bool,
 ) -> Result<()> {
-    let symbol = resolve_symbol(map, path, symbol_name)?;
+    let symbol = resolve_symbol(map, path, symbol_name, filters)?;
     insert_at_line(
         root,
         path,
@@ -70,27 +75,15 @@ pub fn replace_method_body(
     map: &CodeMap,
     path: &Path,
     symbol_name: &str,
+    filters: SymbolFilters<'_>,
     content: &str,
     write: bool,
 ) -> Result<()> {
-    let symbol = resolve_symbol(map, path, symbol_name)?;
-    let text = fs::read_to_string(root.join(path))?;
-    let lines = text.lines().collect::<Vec<_>>();
-
-    let start_index = symbol.line.saturating_sub(1);
-    let end_index = symbol.line_end.min(lines.len());
-    let open_line = (start_index..end_index)
-        .find(|index| lines[*index].contains('{'))
-        .map(|index| index + 1);
-    let close_line = (start_index..end_index)
-        .rev()
-        .find(|index| lines[*index].contains('}'))
-        .map(|index| index + 1);
-
-    let Some(open_line) = open_line else {
+    let symbol = resolve_symbol(map, path, symbol_name, filters)?;
+    let Some(open_line) = symbol.body_open_line else {
         bail!("method body open brace not found for {symbol_name}");
     };
-    let Some(close_line) = close_line else {
+    let Some(close_line) = symbol.body_close_line else {
         bail!("method body close brace not found for {symbol_name}");
     };
     if close_line <= open_line {
@@ -105,6 +98,17 @@ pub fn replace_method_body(
         Some(content),
         write,
     )
+}
+
+pub fn replace_range(
+    root: &Path,
+    path: &Path,
+    start_line: usize,
+    end_line: usize,
+    content: &str,
+    write: bool,
+) -> Result<()> {
+    replace_line_range(root, path, start_line, end_line, Some(content), write)
 }
 
 pub fn replace_field_access(
@@ -166,8 +170,20 @@ pub fn replace_field_access(
     Ok(())
 }
 
-fn resolve_symbol<'a>(map: &'a CodeMap, path: &Path, symbol_name: &str) -> Result<&'a SymbolEntry> {
-    Ok(super::symbol_locator::resolve_symbol_in_file(map, path, symbol_name)?.symbol)
+fn resolve_symbol<'a>(
+    map: &'a CodeMap,
+    path: &Path,
+    symbol_name: &str,
+    filters: SymbolFilters<'_>,
+) -> Result<&'a SymbolEntry> {
+    Ok(super::symbol_locator::resolve_symbol_in_file_with_filters(
+        map,
+        path,
+        symbol_name,
+        filters,
+        true,
+    )?
+    .symbol)
 }
 
 fn replace_line_range(
