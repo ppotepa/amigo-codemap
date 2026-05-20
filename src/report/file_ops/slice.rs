@@ -191,8 +191,6 @@ fn parse_line_range(value: &str) -> Result<(usize, usize)> {
     }
     Ok((start, end))
 }
-
-#[allow(dead_code)]
 fn find_symbol_match<'a>(symbols: &'a [&'a SymbolEntry], query: &str) -> Option<&'a SymbolEntry> {
     symbols
         .iter()

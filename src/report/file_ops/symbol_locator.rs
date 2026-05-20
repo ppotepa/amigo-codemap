@@ -13,8 +13,6 @@ pub enum SymbolMatchKind {
     OwnerQualified,
     Fuzzy,
 }
-
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ResolvedSymbol<'a> {
     pub file: &'a FileEntry,

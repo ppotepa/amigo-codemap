@@ -7,8 +7,6 @@ use regex::Regex;
 use crate::model::CodeMap;
 
 use super::common::{changed_by_path, files_by_id, print_next, slash_path};
-
-#[allow(dead_code)]
 pub fn normalize_body(body: &str) -> String {
     body.lines()
         .filter(|line| !line.trim_start().starts_with("//"))

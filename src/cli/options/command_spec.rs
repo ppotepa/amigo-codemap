@@ -52,7 +52,6 @@ impl CommandFamily {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(crate) enum CommandRoute {
     Snapshot,
     Report,
@@ -638,8 +637,6 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::TauriCommands => CommandFamily::Analysis,
     }
 }
-
-#[allow(dead_code)]
 pub(crate) fn command_route(command: Command) -> CommandRoute {
     match command_family(command) {
         CommandFamily::Snapshot => CommandRoute::Snapshot,

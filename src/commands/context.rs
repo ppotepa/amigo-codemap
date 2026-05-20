@@ -2,14 +2,10 @@ use anyhow::{Result, anyhow};
 
 use crate::cli::{Cli, Command, Options};
 use crate::model::CodeMap;
-
-#[allow(dead_code)]
 pub(super) struct AppContext {
     pub cli: Cli,
     map: Option<CodeMap>,
 }
-
-#[allow(dead_code)]
 impl AppContext {
     pub(super) fn new(cli: Cli) -> Self {
         Self { cli, map: None }
