@@ -11,7 +11,7 @@ use crate::daemon_protocol::{
 };
 use crate::model::CodeMap;
 
-// @codemap P1 codemap-daemon-client-fallback
+// @codemap P1 codemap-daemon-client-local-snapshot
 pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
     if options.no_cache || daemon_is_disabled(options) {
         return Ok(None);
@@ -25,17 +25,13 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
         Ok(DaemonResponse::Map { map, .. }) => Ok(Some(map)),
         Ok(DaemonResponse::Error { message }) => {
             if verbose_daemon_client() {
-                eprintln!(
-                    "codemap daemon returned error; falling back to local snapshot: {message}"
-                );
+                eprintln!("codemap daemon returned error; using local snapshot: {message}");
             }
             Ok(None)
         }
         Ok(other) => {
             if verbose_daemon_client() {
-                eprintln!(
-                    "unexpected codemap daemon response {other:?}; falling back to local snapshot"
-                );
+                eprintln!("unexpected codemap daemon response {other:?}; using local snapshot");
             }
             Ok(None)
         }
@@ -43,9 +39,7 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
             DaemonMode::Require => Err(error),
             _ => {
                 if verbose_daemon_client() {
-                    eprintln!(
-                        "codemap daemon unavailable; falling back to local snapshot: {error}"
-                    );
+                    eprintln!("codemap daemon unavailable; using local snapshot: {error}");
                 }
                 Ok(None)
             }
@@ -107,9 +101,9 @@ fn daemon_addr() -> Result<SocketAddr> {
     Ok(value.parse::<SocketAddr>()?)
 }
 
-fn env_timeout_ms(name: &str, fallback: u64) -> u64 {
+fn env_timeout_ms(name: &str, default_value: u64) -> u64 {
     std::env::var(name)
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(fallback)
+        .unwrap_or(default_value)
 }

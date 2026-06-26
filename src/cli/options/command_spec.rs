@@ -250,6 +250,11 @@ pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
         aliases: &[],
     },
     CommandSpec {
+        command: Command::ArchGuard,
+        name: "arch-guard",
+        aliases: &[],
+    },
+    CommandSpec {
         command: Command::Stale,
         name: "stale",
         aliases: &[],
@@ -560,9 +565,11 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::CommitPlan
         | Command::CommitSummary
         | Command::CommitFiles => CommandFamily::Git,
-        Command::Verify | Command::VerifyPlan | Command::VerifyScope | Command::Fallout => {
-            CommandFamily::Verify
-        }
+        Command::Verify
+        | Command::VerifyPlan
+        | Command::VerifyScope
+        | Command::ArchGuard
+        | Command::Fallout => CommandFamily::Verify,
         Command::PatchPreview
         | Command::PatchCheck
         | Command::PatchApply
@@ -664,6 +671,7 @@ pub(crate) fn command_scan_policy(command: Command) -> ScanPolicy {
         | Command::CommandMap
         | Command::Files
         | Command::VerifyPlan
+        | Command::ArchGuard
         | Command::Taxonomy
         | Command::Stale
         | Command::Fallout

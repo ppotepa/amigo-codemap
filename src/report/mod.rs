@@ -10,6 +10,7 @@ use crate::model::{CodeMap, FileEntry, GitChange, PackageEntry};
 pub mod anchor_check;
 pub mod anchors;
 pub mod api_surface;
+pub mod arch_guard;
 pub mod callsite_candidates;
 pub mod change_plan;
 pub mod code_smells;

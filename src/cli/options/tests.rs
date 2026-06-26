@@ -78,6 +78,13 @@ fn parses_verify_plan_changed() {
 }
 
 #[test]
+fn parses_arch_guard() {
+    let cli = Cli::parse(["arch-guard".to_string()]).expect("cli should parse");
+
+    assert_eq!(cli.command, Command::ArchGuard);
+}
+
+#[test]
 fn parses_impact_group() {
     let cli = Cli::parse([
         "impact".to_string(),
@@ -272,6 +279,7 @@ fn every_command_variant_has_command_spec() {
         Command::Taxonomy,
         Command::Verify,
         Command::VerifyPlan,
+        Command::ArchGuard,
         Command::Stale,
         Command::Impact,
         Command::Fallout,

@@ -15,7 +15,7 @@ pub fn print_shim_check(
     let scope_paths = changed_by_path(map);
     let mut findings = Vec::new();
     let mut shims = 0usize;
-    let mut compat = 0usize;
+    let mut retained = 0usize;
 
     for file in &map.files {
         if changed_only && !scope_paths.contains(&slash_path(&file.path)) {
@@ -29,8 +29,8 @@ pub fn print_shim_check(
                 shims += 1;
                 findings.push(format!("shim: {}", slash_path(&file.path)));
             } else {
-                compat += 1;
-                findings.push(format!("compat: {}", slash_path(&file.path)));
+                retained += 1;
+                findings.push(format!("retained-shim: {}", slash_path(&file.path)));
             }
         }
     }
@@ -47,10 +47,10 @@ pub fn print_shim_check(
             message: "safe to delete zero-ref shims first".to_string(),
         });
     }
-    if compat > 0 {
+    if retained > 0 {
         risks.push(Risk {
             level: RiskLevel::Low,
-            message: "compatibility shims may still be required".to_string(),
+            message: "retained shims may still be required".to_string(),
         });
     }
 
@@ -65,7 +65,7 @@ pub fn print_shim_check(
                 label: "delete zero-ref shims".to_string(),
             },
             NextAction {
-                label: "keep compatibility shims".to_string(),
+                label: "keep retained shims".to_string(),
             },
         ],
     });
@@ -96,7 +96,7 @@ fn classify_shim(text: &str) -> Option<&'static str> {
         return Some("forwarding export/mod shim");
     }
     if lines.iter().all(|line| line.contains("Placeholder")) {
-        return Some("compat shim");
+        return Some("retained shim");
     }
     None
 }

@@ -220,7 +220,7 @@ fn build_open_set_report(
     if definition_paths.is_empty() {
         risks.push(Risk {
             level: RiskLevel::Medium,
-            message: "query has no indexed definitions; using fallback ranking".to_string(),
+            message: "query has no indexed definitions; using secondary ranking".to_string(),
         });
     } else if definition_paths
         .iter()

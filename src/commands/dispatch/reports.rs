@@ -264,6 +264,10 @@ pub(super) fn run(cli: Cli) -> Result<()> {
             );
             print!("{}", report::verify_plan::render_verify_plan(&plan));
         }
+        Command::ArchGuard => {
+            let map = load_report_map(&cli.options)?;
+            report::arch_guard::run(&cli.options.root, &map)?;
+        }
         Command::VerifyScope => {
             let map = load_report_map(&cli.options)?;
             let path = cli

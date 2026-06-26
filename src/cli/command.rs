@@ -36,6 +36,7 @@ pub enum Command {
     Taxonomy,
     Verify,
     VerifyPlan,
+    ArchGuard,
     Stale,
     Impact,
     Fallout,
