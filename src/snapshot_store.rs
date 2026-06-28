@@ -6,7 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::cli::Options;
+use crate::cli::{Options, StalePolicy};
+use crate::incremental::{WorkspaceIndex, current_changed_paths, write_outputs};
 use crate::model::CodeMap;
 use crate::{output, scan};
 
@@ -95,13 +96,40 @@ pub fn load_or_scan(options: &Options) -> Result<LoadedMap> {
     if !options.no_cache {
         if let Some(envelope) = read_snapshot(options)? {
             if snapshot_is_usable(options, &envelope) {
-                if snapshot_may_be_stale(options) {
-                    eprintln!("codemap snapshot is stale; refreshing before running report");
-                } else {
-                    return Ok(LoadedMap {
-                        map: envelope.map,
-                        source: MapSource::Snapshot,
-                    });
+                match options.stale_policy {
+                    StalePolicy::Ignore => {
+                        return Ok(LoadedMap {
+                            map: envelope.map,
+                            source: MapSource::Snapshot,
+                        });
+                    }
+                    StalePolicy::Warn | StalePolicy::Refresh => {
+                        if snapshot_may_be_stale(options) {
+                            if matches!(options.stale_policy, StalePolicy::Warn) {
+                                eprintln!(
+                                    "codemap snapshot is stale; using cached snapshot because --stale warn is active"
+                                );
+                                return Ok(LoadedMap {
+                                    map: envelope.map,
+                                    source: MapSource::Snapshot,
+                                });
+                            }
+                            eprintln!(
+                                "codemap snapshot is stale; refreshing before running report"
+                            );
+                            if let Some(map) = try_incremental_refresh(options, envelope.map)? {
+                                return Ok(LoadedMap {
+                                    map,
+                                    source: MapSource::Scan,
+                                });
+                            }
+                        } else {
+                            return Ok(LoadedMap {
+                                map: envelope.map,
+                                source: MapSource::Snapshot,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -115,6 +143,21 @@ pub fn load_or_scan(options: &Options) -> Result<LoadedMap> {
         map,
         source: MapSource::Scan,
     })
+}
+
+fn try_incremental_refresh(options: &Options, map: CodeMap) -> Result<Option<CodeMap>> {
+    let touched = current_changed_paths(&options.root)?;
+    if touched.is_empty() {
+        return Ok(None);
+    }
+
+    let mut index = WorkspaceIndex::from_map(map);
+    let delta = index.refresh_touched(options, &touched)?;
+    if delta.full_refresh {
+        return Ok(None);
+    }
+    write_outputs(options, &index.map)?;
+    Ok(Some(index.map))
 }
 
 pub fn refresh_snapshot(options: &Options) -> Result<bool> {
@@ -272,7 +315,7 @@ fn is_codemap_source_file(path: &Path) -> bool {
     path.extension().is_some_and(|ext| {
         matches!(
             ext.to_string_lossy().to_ascii_lowercase().as_str(),
-            "rs" | "ts" | "tsx" | "css" | "md" | "toml" | "yaml" | "yml" | "rhai"
+            "rs" | "ts" | "tsx" | "css" | "md" | "toml" | "yaml" | "yml" | "rhai" | "wgsl"
         )
     })
 }

@@ -64,6 +64,7 @@ pub enum Command {
     OrphanFiles,
     ShimCheck,
     LargeFiles,
+    Coverage,
     AssetFileCheck,
     CaseCheck,
     TextCheck,

@@ -1,5 +1,8 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::thread;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
@@ -21,7 +24,7 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
         options: map_options(options),
     };
 
-    match send_request(request) {
+    match send_request(request.clone()) {
         Ok(DaemonResponse::Map { map, .. }) => Ok(Some(map)),
         Ok(DaemonResponse::Error { message }) => {
             if verbose_daemon_client() {
@@ -37,7 +40,41 @@ pub fn try_load_map(options: &Options) -> Result<Option<CodeMap>> {
         }
         Err(error) => match options.daemon_mode {
             DaemonMode::Require => Err(error),
-            _ => {
+            DaemonMode::Auto if daemon_autostart_enabled() => {
+                if verbose_daemon_client() {
+                    eprintln!("codemap daemon unavailable; starting local daemon: {error}");
+                }
+                if start_daemon(options).is_ok() {
+                    match retry_request(request) {
+                        Ok(DaemonResponse::Map { map, .. }) => return Ok(Some(map)),
+                        Ok(DaemonResponse::Error { message }) => {
+                            if verbose_daemon_client() {
+                                eprintln!(
+                                    "started codemap daemon returned error; using local snapshot: {message}"
+                                );
+                            }
+                        }
+                        Ok(other) => {
+                            if verbose_daemon_client() {
+                                eprintln!(
+                                    "started codemap daemon returned {other:?}; using local snapshot"
+                                );
+                            }
+                        }
+                        Err(error) => {
+                            if verbose_daemon_client() {
+                                eprintln!(
+                                    "started codemap daemon did not respond; using local snapshot: {error}"
+                                );
+                            }
+                        }
+                    }
+                } else if verbose_daemon_client() {
+                    eprintln!("failed to start codemap daemon; using local snapshot");
+                }
+                Ok(None)
+            }
+            DaemonMode::Auto | DaemonMode::Disabled => {
                 if verbose_daemon_client() {
                     eprintln!("codemap daemon unavailable; using local snapshot: {error}");
                 }
@@ -58,6 +95,11 @@ fn verbose_daemon_client() -> bool {
         .is_ok_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
 }
 
+fn daemon_autostart_enabled() -> bool {
+    !std::env::var("AMIGO_CODEMAP_DAEMON_AUTOSTART")
+        .is_ok_and(|value| matches!(value.as_str(), "0" | "false" | "FALSE" | "no" | "NO"))
+}
+
 fn map_options(options: &Options) -> DaemonMapOptions {
     DaemonMapOptions {
         root: options.root.to_string_lossy().to_string(),
@@ -65,6 +107,7 @@ fn map_options(options: &Options) -> DaemonMapOptions {
         level: options.level,
         pretty: options.pretty,
         ai: options.ai,
+        stale_policy: options.stale_policy.as_str().to_string(),
     }
 }
 
@@ -93,6 +136,62 @@ pub fn send_request(request: DaemonRequest) -> Result<DaemonResponse> {
     }
 
     Ok(serde_json::from_str::<DaemonResponse>(&response)?)
+}
+
+fn retry_request(request: DaemonRequest) -> Result<DaemonResponse> {
+    let attempts = env_timeout_ms("AMIGO_CODEMAP_DAEMON_START_ATTEMPTS", 20).max(1);
+    for attempt in 0..attempts {
+        match send_request(request.clone()) {
+            Ok(response) => return Ok(response),
+            Err(error) if attempt + 1 == attempts => return Err(error),
+            Err(_) => thread::sleep(Duration::from_millis(env_timeout_ms(
+                "AMIGO_CODEMAP_DAEMON_START_RETRY_MS",
+                75,
+            ))),
+        }
+    }
+    unreachable!("attempt count is clamped to at least one")
+}
+
+fn start_daemon(options: &Options) -> Result<()> {
+    let daemon = daemon_exe_path()?;
+    let mut command = Command::new(daemon);
+    command
+        .arg("run")
+        .arg("--root")
+        .arg(&options.root)
+        .arg("--out")
+        .arg(&options.out)
+        .arg("--level")
+        .arg(options.level.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    if options.pretty {
+        command.arg("--pretty");
+    }
+    if options.ai {
+        command.arg("--ai");
+    }
+    if let Ok(addr) = std::env::var("AMIGO_CODEMAP_DAEMON_ADDR") {
+        command.arg("--addr").arg(addr);
+    }
+
+    command.spawn()?;
+    Ok(())
+}
+
+fn daemon_exe_path() -> Result<PathBuf> {
+    let current = std::env::current_exe()?;
+    let sibling = current.with_file_name(format!("amigo-codemapd{}", std::env::consts::EXE_SUFFIX));
+    if sibling.exists() {
+        return Ok(sibling);
+    }
+    Ok(PathBuf::from(format!(
+        "amigo-codemapd{}",
+        std::env::consts::EXE_SUFFIX
+    )))
 }
 
 fn daemon_addr() -> Result<SocketAddr> {

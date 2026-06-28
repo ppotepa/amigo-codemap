@@ -75,6 +75,7 @@ pub struct Options {
     pub no_verbose: bool,
     pub quiet: bool,
     pub no_cache: bool,
+    pub stale_policy: StalePolicy,
     pub compact: bool,
     pub hide_generated: bool,
     pub include_tests: bool,
@@ -90,6 +91,23 @@ pub enum DaemonMode {
     Auto,
     Require,
     Disabled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StalePolicy {
+    Refresh,
+    Warn,
+    Ignore,
+}
+
+impl StalePolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Refresh => "refresh",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

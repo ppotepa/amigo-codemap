@@ -4,7 +4,9 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::model::{
     AnchorDiagnostic, AnchorIndex, AnchorIndexCounts, AnchorIndexEntry, CodeMap, CodemapTagEntry,
@@ -19,11 +21,17 @@ pub fn print_anchors(
     limit: usize,
 ) -> Result<()> {
     let taxonomy = CodemapTaxonomy::try_load(root);
-    let index = build_anchor_index(map, taxonomy.as_ref());
+    let index = if write {
+        build_anchor_index(map, taxonomy.as_ref())
+    } else {
+        cached_anchor_index(root, map, taxonomy.as_ref())
+    };
 
     if write {
+        write_anchor_cache(root, map, &index)?;
         write_anchor_index(root, &index)?;
         write_coverage_report(root, &index)?;
+        println!("wrote .amigo/codemap.anchors.cache.json");
         println!("wrote .amigo/codemap.anchors.generated.json");
         println!("wrote .amigo/codemap.coverage.generated.md");
         return Ok(());
@@ -31,6 +39,21 @@ pub fn print_anchors(
 
     print_anchor_summary(&index, query, limit);
     Ok(())
+}
+
+pub fn cached_anchor_index(
+    root: &Path,
+    map: &CodeMap,
+    taxonomy: Option<&CodemapTaxonomy>,
+) -> AnchorIndex {
+    let fingerprint = anchor_cache_fingerprint(map, taxonomy);
+    if let Ok(Some(index)) = read_anchor_cache(root, map, &fingerprint) {
+        return index;
+    }
+
+    let index = build_anchor_index(map, taxonomy);
+    let _ = write_anchor_cache_with_fingerprint(root, map, &fingerprint, &index);
+    index
 }
 
 pub fn build_anchor_index(map: &CodeMap, taxonomy: Option<&CodemapTaxonomy>) -> AnchorIndex {
@@ -461,6 +484,90 @@ fn write_anchor_index(root: &Path, index: &AnchorIndex) -> Result<()> {
         serde_json::to_string_pretty(&anchor_index_json(index))?,
     )?;
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AnchorIndexCache {
+    version: u16,
+    repo: String,
+    fingerprint: String,
+    index: AnchorIndex,
+}
+
+fn anchor_cache_path(root: &Path) -> std::path::PathBuf {
+    root.join(".amigo").join("codemap.anchors.cache.json")
+}
+
+fn read_anchor_cache(root: &Path, map: &CodeMap, fingerprint: &str) -> Result<Option<AnchorIndex>> {
+    let path = anchor_cache_path(root);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let cache = serde_json::from_slice::<AnchorIndexCache>(&fs::read(path)?)?;
+    if cache.version == 1 && cache.repo == map.root_name && cache.fingerprint == fingerprint {
+        return Ok(Some(cache.index));
+    }
+    Ok(None)
+}
+
+fn write_anchor_cache(root: &Path, map: &CodeMap, index: &AnchorIndex) -> Result<()> {
+    let fingerprint = anchor_cache_fingerprint(map, None);
+    write_anchor_cache_with_fingerprint(root, map, &fingerprint, index)
+}
+
+fn write_anchor_cache_with_fingerprint(
+    root: &Path,
+    map: &CodeMap,
+    fingerprint: &str,
+    index: &AnchorIndex,
+) -> Result<()> {
+    let path = anchor_cache_path(root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let cache = AnchorIndexCache {
+        version: 1,
+        repo: map.root_name.clone(),
+        fingerprint: fingerprint.to_string(),
+        index: index.clone(),
+    };
+    fs::write(path, serde_json::to_vec(&cache)?)?;
+    Ok(())
+}
+
+fn anchor_cache_fingerprint(map: &CodeMap, taxonomy: Option<&CodemapTaxonomy>) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(map.root_name.as_bytes());
+    hasher.update([0]);
+    for file in &map.files {
+        hasher.update(file.id.as_bytes());
+        hasher.update([0]);
+        hasher.update(file.path.to_string_lossy().as_bytes());
+        hasher.update([0]);
+        hasher.update(file.language.as_bytes());
+        hasher.update([0]);
+        hasher.update(file.hash.as_bytes());
+        hasher.update([0]);
+    }
+    for tag in &map.tags {
+        hasher.update(tag.anchor.as_bytes());
+        hasher.update([0]);
+        hasher.update(tag.file_id.as_bytes());
+        hasher.update([0]);
+        hasher.update(tag.line.to_le_bytes());
+        hasher.update(tag.domain.as_deref().unwrap_or_default().as_bytes());
+        hasher.update([0]);
+        hasher.update(tag.role.as_deref().unwrap_or_default().as_bytes());
+        hasher.update([0]);
+        hasher.update(tag.priority.as_deref().unwrap_or_default().as_bytes());
+        hasher.update([0]);
+        hasher.update(tag.raw.as_bytes());
+        hasher.update([0]);
+    }
+    if let Some(taxonomy) = taxonomy {
+        hasher.update(format!("{taxonomy:?}").as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
 }
 
 fn write_coverage_report(root: &Path, index: &AnchorIndex) -> Result<()> {

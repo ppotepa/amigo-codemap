@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::command_names::parse_command_name;
 use super::command_spec::COMMAND_SPECS;
-use super::{Cli, Command};
+use super::{Cli, Command, StalePolicy};
 
 #[test]
 fn parses_find_query_and_limit() {
@@ -17,6 +17,41 @@ fn parses_find_query_and_limit() {
     assert_eq!(cli.command, Command::Find);
     assert_eq!(cli.options.query.as_deref(), Some("AssetTreePanel"));
     assert_eq!(cli.options.limit, 12);
+}
+
+#[test]
+fn parses_stale_policy_flags() {
+    let cli = Cli::parse([
+        "brief".to_string(),
+        "--stale".to_string(),
+        "warn".to_string(),
+    ])
+    .expect("cli should parse");
+    assert_eq!(cli.options.stale_policy, StalePolicy::Warn);
+
+    let cli =
+        Cli::parse(["brief".to_string(), "--stale-ignore".to_string()]).expect("cli should parse");
+    assert_eq!(cli.options.stale_policy, StalePolicy::Ignore);
+
+    let error = Cli::parse([
+        "brief".to_string(),
+        "--stale".to_string(),
+        "auto".to_string(),
+    ])
+    .expect_err("unknown stale policy should fail");
+    assert!(
+        error
+            .to_string()
+            .contains("expected refresh, warn, or ignore")
+    );
+}
+
+#[test]
+fn parses_coverage_artifact_path() {
+    let cli =
+        Cli::parse(["coverage".to_string(), "concat.txt".to_string()]).expect("cli should parse");
+    assert_eq!(cli.command, Command::Coverage);
+    assert_eq!(cli.options.query.as_deref(), Some("concat.txt"));
 }
 
 #[test]

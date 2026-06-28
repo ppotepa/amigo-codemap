@@ -7,11 +7,13 @@ use crate::model::CodeMap;
 use crate::query::descriptive_tokens;
 use crate::report::common::{feature_group, is_codemap, is_docs, is_test_file, slash_path};
 
-use crate::report::anchors::{anchor_entry_matches, anchor_priority_score, build_anchor_index};
+use crate::report::anchors::{anchor_entry_matches, anchor_priority_score, cached_anchor_index};
 use crate::taxonomy::CodemapTaxonomy;
 
 use super::common::{changed_by_path, changed_status_by_path, text_refs_like};
 use super::model::{FileOpReport, NextAction, Risk, RiskLevel, render_report};
+
+const OPEN_SET_TEXT_REF_LIMIT: usize = 400;
 
 pub fn print_open_set(
     root: &Path,
@@ -36,18 +38,24 @@ fn build_open_set_report(
 ) -> Result<FileOpReport> {
     let changed_paths = changed_by_path(map);
     let changed_status = changed_status_by_path(map);
-    let refs = text_refs_like(root, map, query, usize::MAX).unwrap_or_default();
+    let refs = text_refs_like(root, map, query, OPEN_SET_TEXT_REF_LIMIT).unwrap_or_default();
     let query_tokens = descriptive_tokens(query);
     let text_query_tokens = if query.split_whitespace().count() > 1 {
         open_set_text_tokens(&query_tokens)
     } else {
         Vec::new()
     };
+    let path_query_tokens = open_set_path_tokens(&query_tokens);
     let anchor_query_tokens = if query.split_whitespace().count() > 1 {
-        query_tokens.as_slice()
+        path_query_tokens.as_slice()
     } else {
         &[]
     };
+    let files_by_id = map
+        .files
+        .iter()
+        .map(|file| (file.id.clone(), slash_path(&file.path)))
+        .collect::<BTreeMap<_, _>>();
 
     let mut definition_paths = BTreeSet::<String>::new();
     let mut ref_counts = BTreeMap::<String, usize>::new();
@@ -57,17 +65,16 @@ fn build_open_set_report(
 
     for symbol in map.symbols.iter().filter(|symbol| {
         symbol.name == query
-            || query_tokens
-                .iter()
-                .any(|token| symbol_name_matches_query(&symbol.name, token))
+            || query_tokens.iter().any(|token| {
+                !is_open_set_generic_token(token) && symbol_name_matches_query(&symbol.name, token)
+            })
     }) {
-        if let Some(file) = map.files.iter().find(|file| file.id == symbol.file_id) {
-            let path = slash_path(&file.path);
+        if let Some(path) = files_by_id.get(&symbol.file_id) {
             definition_paths.insert(path.clone());
             if symbol.name != query {
                 add_score(
                     &mut token_scores,
-                    path,
+                    path.clone(),
                     70,
                     format!("symbol-token:{}", symbol.name),
                 );
@@ -89,7 +96,9 @@ fn build_open_set_report(
     }
 
     for token in &text_query_tokens {
-        for reference in text_refs_like(root, map, token, usize::MAX).unwrap_or_default() {
+        for reference in
+            text_refs_like(root, map, token, OPEN_SET_TEXT_REF_LIMIT).unwrap_or_default()
+        {
             let path = slash_path(&reference.path);
             if should_skip_open_set_path(&path, editor_def) {
                 skip.insert(path);
@@ -100,14 +109,31 @@ fn build_open_set_report(
         }
     }
 
+    add_path_token_scores(
+        map,
+        &mut token_scores,
+        &path_query_tokens,
+        query,
+        editor_def,
+    );
+
     let taxonomy = CodemapTaxonomy::try_load(root);
-    let anchor_index = build_anchor_index(map, taxonomy.as_ref());
+    let anchor_index = cached_anchor_index(root, map, taxonomy.as_ref());
     for anchor in &anchor_index.anchors {
         let matched_by_query = anchor_entry_matches(anchor, query);
         let matched_by_token = anchor_query_tokens
             .iter()
             .any(|token| anchor_entry_matches(anchor, token));
         if !matched_by_query && !matched_by_token {
+            continue;
+        }
+        if matched_by_token
+            && !matched_by_query
+            && anchor.role == "file"
+            && !anchor_query_tokens
+                .iter()
+                .any(|token| anchor.file.to_ascii_lowercase().contains(token))
+        {
             continue;
         }
 
@@ -445,8 +471,8 @@ fn add_score(
     scores
         .entry(path)
         .and_modify(|entry| {
-            entry.0 += score;
             if !entry.1.iter().any(|item| item == &reason) {
+                entry.0 += score;
                 entry.1.push(reason.clone());
             }
         })
@@ -468,6 +494,124 @@ fn open_set_text_tokens(tokens: &[String]) -> Vec<String> {
         })
         .cloned()
         .collect()
+}
+
+fn open_set_path_tokens(tokens: &[String]) -> Vec<String> {
+    tokens
+        .iter()
+        .filter(|token| {
+            token.len() >= 3
+                && !matches!(
+                    token.as_str(),
+                    "the"
+                        | "and"
+                        | "for"
+                        | "with"
+                        | "from"
+                        | "source"
+                        | "policy"
+                        | "performance"
+                        | "optimize"
+                        | "text"
+                        | "refs"
+                        | "set"
+                        | "path"
+                        | "paths"
+                        | "report"
+                        | "cache"
+                        | "index"
+                        | "facts"
+                        | "file"
+                        | "files"
+                )
+        })
+        .cloned()
+        .collect()
+}
+
+fn is_open_set_generic_token(token: &str) -> bool {
+    matches!(
+        token,
+        "the"
+            | "and"
+            | "for"
+            | "with"
+            | "from"
+            | "source"
+            | "policy"
+            | "performance"
+            | "optimize"
+            | "text"
+            | "refs"
+            | "set"
+            | "path"
+            | "paths"
+            | "report"
+            | "cache"
+            | "index"
+            | "facts"
+            | "file"
+            | "files"
+    )
+}
+
+fn add_path_token_scores(
+    map: &CodeMap,
+    scores: &mut BTreeMap<String, (i32, Vec<String>)>,
+    tokens: &[String],
+    query: &str,
+    editor_def: bool,
+) {
+    if tokens.is_empty() {
+        return;
+    }
+
+    let query_path_fragment = query
+        .to_ascii_lowercase()
+        .replace('\\', "/")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-");
+
+    for file in &map.files {
+        let path = slash_path(&file.path);
+        if should_skip_open_set_path(&path, editor_def) {
+            continue;
+        }
+
+        let lower_path = path.to_ascii_lowercase();
+        let mut matched = 0usize;
+        for token in tokens {
+            if lower_path.contains(token) {
+                matched += 1;
+                add_score(scores, path.clone(), 22, format!("path-token:{token}"));
+            }
+        }
+
+        if matched >= 2 && matched == tokens.len().min(matched) {
+            add_score(scores, path.clone(), 30, "path-token-cluster".to_string());
+        }
+        if tokens.iter().any(|token| token == "amigo")
+            && tokens.iter().any(|token| token == "codemap")
+            && lower_path.starts_with("crates/tools/amigo-codemap/")
+        {
+            add_score(
+                scores,
+                path.clone(),
+                420,
+                "path-crate:amigo-codemap".to_string(),
+            );
+        }
+        for term in query.split_whitespace() {
+            let term = term.to_ascii_lowercase().replace('\\', "/");
+            if term.len() >= 4 && term.contains('-') && lower_path.contains(&term) {
+                add_score(scores, path.clone(), 140, format!("path-term:{term}"));
+            }
+        }
+        if !query_path_fragment.is_empty() && lower_path.contains(&query_path_fragment) {
+            add_score(scores, path, 90, "path-query-fragment".to_string());
+        }
+    }
 }
 
 fn normalize_identifier(value: &str) -> String {

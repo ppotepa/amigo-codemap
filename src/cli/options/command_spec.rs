@@ -390,6 +390,11 @@ pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
         aliases: &[],
     },
     CommandSpec {
+        command: Command::Coverage,
+        name: "coverage",
+        aliases: &["artifact-coverage"],
+    },
+    CommandSpec {
         command: Command::AssetFileCheck,
         name: "asset-file-check",
         aliases: &[],
@@ -604,6 +609,7 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::RangeForLines
         | Command::AnchorRange
         | Command::OpenSet
+        | Command::Coverage
         | Command::Neighbors
         | Command::ExplainFile
         | Command::ChangePlan
@@ -694,6 +700,7 @@ pub(crate) fn command_scan_policy(command: Command) -> ScanPolicy {
         | Command::AssetFileCheck
         | Command::CaseCheck
         | Command::TextCheck
+        | Command::Coverage
         | Command::PatchCheck
         | Command::PatchApply
         | Command::OpsPreview
@@ -788,6 +795,7 @@ pub(crate) fn command_positional_mode(command: Command) -> PositionalMode {
         | Command::Workset
         | Command::BarrelCheck
         | Command::OrphanFiles
+        | Command::Coverage
         | Command::AssetFileCheck
         | Command::PatchPreview
         | Command::PatchCheck

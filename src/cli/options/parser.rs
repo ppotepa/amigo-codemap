@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 
 use super::command_names::parse_command_name;
-use super::{Cli, DaemonMode, Options};
+use super::{Cli, DaemonMode, Options, StalePolicy};
 use crate::cli::{Command, PositionalMode, command_positional_mode};
 
 pub(super) fn parse<I>(args: I) -> Result<Cli>
@@ -69,6 +69,7 @@ where
     let mut no_verbose = false;
     let mut quiet = false;
     let mut no_cache = false;
+    let mut stale_policy = StalePolicy::Refresh;
     let mut compact = false;
     let mut hide_generated = false;
     let mut include_tests = false;
@@ -289,6 +290,22 @@ where
             "--no-verbose" => no_verbose = true,
             "--quiet" => quiet = true,
             "--no-cache" => no_cache = true,
+            "--stale" => {
+                index += 1;
+                stale_policy = match required_value(&args, index, "--stale")?
+                    .to_ascii_lowercase()
+                    .as_str()
+                {
+                    "refresh" => StalePolicy::Refresh,
+                    "warn" => StalePolicy::Warn,
+                    "ignore" => StalePolicy::Ignore,
+                    other => {
+                        bail!("unknown --stale policy `{other}`; expected refresh, warn, or ignore")
+                    }
+                };
+            }
+            "--stale-warn" => stale_policy = StalePolicy::Warn,
+            "--stale-ignore" => stale_policy = StalePolicy::Ignore,
             "--compact" => compact = true,
             "--hide-generated" => hide_generated = true,
             "--include-tests" => include_tests = true,
@@ -394,6 +411,7 @@ where
             no_verbose,
             quiet,
             no_cache,
+            stale_policy,
             compact,
             hide_generated,
             include_tests,
