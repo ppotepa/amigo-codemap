@@ -5,8 +5,8 @@ scope:
 findings:
   recommended files: 2
   read first:
-    crates/apps/amigo-editor/src/app/selectionTypes.ts [score 211, definition, refs:1, selection, task:implement-definition]
-    crates/apps/amigo-editor/src/app/store/editorState.ts [score 56, refs:1, store boundary]
+    crates/apps/amigo-editor/src/app/selectionTypes.ts [score 285, definition, refs:1, selection, task:implement-definition, path-token:editor, path-token:selection, path-token-cluster]
+    crates/apps/amigo-editor/src/app/store/editorState.ts [score 78, refs:1, store boundary, path-token:editor]
   skip:
     README.md
 risk:

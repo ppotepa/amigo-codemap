@@ -250,6 +250,11 @@ pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
         aliases: &[],
     },
     CommandSpec {
+        command: Command::ArchGuard,
+        name: "arch-guard",
+        aliases: &[],
+    },
+    CommandSpec {
         command: Command::Stale,
         name: "stale",
         aliases: &[],
@@ -383,6 +388,11 @@ pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
         command: Command::LargeFiles,
         name: "large-files",
         aliases: &[],
+    },
+    CommandSpec {
+        command: Command::Coverage,
+        name: "coverage",
+        aliases: &["artifact-coverage"],
     },
     CommandSpec {
         command: Command::AssetFileCheck,
@@ -560,9 +570,11 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::CommitPlan
         | Command::CommitSummary
         | Command::CommitFiles => CommandFamily::Git,
-        Command::Verify | Command::VerifyPlan | Command::VerifyScope | Command::Fallout => {
-            CommandFamily::Verify
-        }
+        Command::Verify
+        | Command::VerifyPlan
+        | Command::VerifyScope
+        | Command::ArchGuard
+        | Command::Fallout => CommandFamily::Verify,
         Command::PatchPreview
         | Command::PatchCheck
         | Command::PatchApply
@@ -597,6 +609,7 @@ pub(crate) fn command_family(command: Command) -> CommandFamily {
         | Command::RangeForLines
         | Command::AnchorRange
         | Command::OpenSet
+        | Command::Coverage
         | Command::Neighbors
         | Command::ExplainFile
         | Command::ChangePlan
@@ -664,6 +677,7 @@ pub(crate) fn command_scan_policy(command: Command) -> ScanPolicy {
         | Command::CommandMap
         | Command::Files
         | Command::VerifyPlan
+        | Command::ArchGuard
         | Command::Taxonomy
         | Command::Stale
         | Command::Fallout
@@ -686,6 +700,7 @@ pub(crate) fn command_scan_policy(command: Command) -> ScanPolicy {
         | Command::AssetFileCheck
         | Command::CaseCheck
         | Command::TextCheck
+        | Command::Coverage
         | Command::PatchCheck
         | Command::PatchApply
         | Command::OpsPreview
@@ -780,6 +795,7 @@ pub(crate) fn command_positional_mode(command: Command) -> PositionalMode {
         | Command::Workset
         | Command::BarrelCheck
         | Command::OrphanFiles
+        | Command::Coverage
         | Command::AssetFileCheck
         | Command::PatchPreview
         | Command::PatchCheck

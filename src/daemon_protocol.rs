@@ -11,6 +11,12 @@ pub struct DaemonMapOptions {
     pub level: u8,
     pub pretty: bool,
     pub ai: bool,
+    #[serde(default = "default_stale_policy")]
+    pub stale_policy: String,
+}
+
+fn default_stale_policy() -> String {
+    "refresh".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

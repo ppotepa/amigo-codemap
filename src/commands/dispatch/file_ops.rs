@@ -229,6 +229,20 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 cli.options.with_split_hints,
             );
         }
+        Command::Coverage => {
+            let map = load_report_map(&cli.options)?;
+            let query = cli
+                .options
+                .query
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("coverage requires an artifact path"))?;
+            report::file_ops::coverage::print_coverage(
+                &cli.options.root,
+                &map,
+                std::path::Path::new(query),
+                cli.options.limit,
+            )?;
+        }
         Command::AssetFileCheck => {
             let query = cli
                 .options

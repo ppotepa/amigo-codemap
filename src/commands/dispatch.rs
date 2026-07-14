@@ -29,6 +29,7 @@ pub(super) fn run(mut cli: Cli) -> Result<()> {
         | Command::OrphanFiles
         | Command::ShimCheck
         | Command::LargeFiles
+        | Command::Coverage
         | Command::AssetFileCheck
         | Command::CaseCheck
         | Command::TextCheck

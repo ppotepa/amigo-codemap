@@ -1472,7 +1472,7 @@ function Run-Measured($Name, $Command) {
 
 Size: small, 3 implementation steps.
 
-Goal: pass a short `diagnostic_label` from scene snapshot service through editor snapshot DTOs so frontend can display whether the scene snapshot is engine, fallback, or cached.
+Goal: pass a short `diagnostic_label` from scene snapshot service through editor snapshot DTOs so frontend can display whether the scene snapshot is engine, explicit recovery, or cached.
 
 Codemap-first:
 
@@ -1514,7 +1514,7 @@ Result: codemap-first used ~94.1% fewer estimated context tokens. It avoided ope
 
 Size: medium, 5 implementation steps.
 
-Goal: make the scene editor clearly distinguish real engine snapshots from fallback snapshots. Picking and drag should be disabled unless the model came from a real engine layout.
+Goal: make the scene editor clearly distinguish real engine snapshots from explicit recovery snapshots. Picking and drag should be disabled unless the model came from a real engine layout.
 
 Codemap-first:
 
@@ -1537,7 +1537,7 @@ Run-Measured "impact" "$cm impact layoutSource --limit 30"
 Standard:
 
 ```powershell
-rg "layoutSource|EditorSceneSnapshotDto|SceneEditorCanvas|fallback|bounds"
+rg "layoutSource|EditorSceneSnapshotDto|SceneEditorCanvas|explicit recovery|bounds"
 Get-Content crates/apps/amigo-editor/src/api/dto.ts
 Get-Content crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorTypes.ts
 Get-Content crates/apps/amigo-editor/src/features/scenes/editor/sceneEditorModel.ts
@@ -1649,8 +1649,8 @@ Final comparison table:
 |---|---:|---|---:|---:|---:|---:|---|
 | Snapshot label | 3 | codemap | 2 | 25 | 941 | 7 | pass |
 | Snapshot label | 3 | standard | 4 | 2159 | 15874 | 5 | pass |
-| Fallback guard | 5 | codemap | 5 | 230 | 3759 | 10 | pass |
-| Fallback guard | 5 | standard | 8 | 3509 | 38561 | 9 | pass |
+| explicit recovery guard | 5 | codemap | 5 | 230 | 3759 | 10 | pass |
+| explicit recovery guard | 5 | standard | 8 | 3509 | 38561 | 9 | pass |
 | Pointer fast-path | 10 | codemap | 7 | 822 | 14210 | 13 | pass |
 | Pointer fast-path | 10 | standard | 13 | 4775 | 79403 | 14 | pass |
 

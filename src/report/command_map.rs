@@ -105,6 +105,23 @@ const COMMANDS: &[CommandDescriptor] = &[
         related: &["changes", "commit-plan", "ops-verify"],
     },
     CommandDescriptor {
+        name: "arch-guard",
+        category: "verify",
+        cli_paths: CLI_PATH,
+        dispatch_paths: MAIN_PATH,
+        implementation_paths: &["crates/tools/amigo-codemap/src/report/arch_guard.rs"],
+        docs_paths: &[
+            "plan.md",
+            "plan.summary.md",
+            "audits/architecture-scorecard.md",
+        ],
+        test_paths: &[
+            "crates/tools/amigo-codemap/src/cli/options/tests.rs",
+            "crates/tools/amigo-codemap/src/report/arch_guard.rs",
+        ],
+        related: &["verify-plan", "anchor-check", "taxonomy"],
+    },
+    CommandDescriptor {
         name: "taxonomy",
         category: "meta",
         cli_paths: CLI_PATH,

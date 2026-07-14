@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Instant;
 
 use anyhow::Result;
@@ -9,6 +10,7 @@ use crate::model::{
     AreaEntry, CodeMap, DependencyEntry, RelationEntry, SymbolEntry, TextOccurrenceEntry,
 };
 use crate::{output, snapshot_store};
+use amigo_symbol_explorer::git;
 use amigo_symbol_explorer::scan::{
     ScanDiagnostics, SymbolExplorerScanOptions, scan_files_with_options, scan_project,
     scan_project_with_files,
@@ -31,6 +33,15 @@ pub struct WorkspaceIndex {
 }
 
 impl WorkspaceIndex {
+    pub fn from_map(map: CodeMap) -> Self {
+        Self {
+            map,
+            generation: 1,
+            dirty_paths: BTreeSet::new(),
+            last_refresh_ms: 0,
+        }
+    }
+
     pub fn from_full_scan(options: &Options) -> Result<Self> {
         let map = scan_project(&scan_options(options))?;
         Ok(Self {
@@ -70,7 +81,13 @@ impl WorkspaceIndex {
             } else {
                 scan_project_with_files(&scan_options, touched_files)?
             };
-            merge_map(&self.map, &current_files, &touched_map, &dirty_paths)
+            merge_map(
+                &scan_options.root,
+                &self.map,
+                &current_files,
+                &touched_map,
+                &dirty_paths,
+            )
         };
 
         self.map = map;
@@ -100,6 +117,38 @@ pub fn write_outputs(options: &Options, map: &CodeMap) -> Result<bool> {
     let wrote = output::write_codemap(options, map)?;
     snapshot_store::write_snapshot(options, map)?;
     Ok(wrote)
+}
+
+pub fn current_changed_paths(root: &Path) -> Result<Vec<PathBuf>> {
+    let output = Command::new("git")
+        .args(["status", "--short"])
+        .current_dir(root)
+        .output()?;
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(status_path)
+        .collect())
+}
+
+fn status_path(line: &str) -> Option<PathBuf> {
+    if line.len() < 4 {
+        return None;
+    }
+    let path_text = line[2..].trim();
+    let path_text = path_text
+        .split(" -> ")
+        .last()
+        .unwrap_or(path_text)
+        .trim_matches('"');
+    if path_text.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path_text.replace('\\', "/")))
+    }
 }
 
 fn normalize_dirty_paths(root: &Path, dirty_paths: &BTreeSet<PathBuf>) -> BTreeSet<PathBuf> {
@@ -162,6 +211,7 @@ fn assign_stable_file_ids(
 }
 
 fn merge_map(
+    root: &Path,
     old_map: &CodeMap,
     current_files: &[crate::model::FileEntry],
     touched_map: &CodeMap,
@@ -171,11 +221,23 @@ fn merge_map(
         .iter()
         .filter(|file| touched_paths.contains(&file.path))
         .map(|file| file.id.clone())
+        .chain(
+            old_map
+                .files
+                .iter()
+                .filter(|file| touched_paths.contains(&file.path))
+                .map(|file| file.id.clone()),
+        )
         .collect::<BTreeSet<_>>();
 
-    let files = current_files.to_vec();
+    let file_ids = current_files
+        .iter()
+        .map(|file| (file.path.clone(), file.id.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let git = git::read_git_info(root, &file_ids);
+    let mut files = current_files.to_vec();
+    apply_git_state_tags(&mut files, &git);
     let packages = old_map.packages.clone();
-    let git = old_map.git.clone();
     let mut symbols = keep_untouched_symbols(&old_map.symbols, &touched_ids);
     let mut text_occurrences = keep_untouched_text(&old_map.text_occurrences, &touched_ids);
     let mut tags = keep_untouched_tags(&old_map.tags, &touched_ids);
@@ -285,6 +347,31 @@ fn build_areas(files: &[crate::model::FileEntry]) -> Vec<AreaEntry> {
         .collect()
 }
 
+fn apply_git_state_tags(files: &mut [crate::model::FileEntry], git: &crate::model::GitInfo) {
+    let changed_by_id = git
+        .changed
+        .iter()
+        .filter_map(|change| change.file_id.as_ref().map(|id| (id.clone(), change)))
+        .collect::<BTreeMap<_, _>>();
+
+    for file in files {
+        file.tags
+            .retain(|tag| !tag.starts_with("state:") && !tag.starts_with("status:"));
+        if let Some(change) = changed_by_id.get(&file.id) {
+            push_unique_tag(&mut file.tags, "state:changed");
+            push_unique_tag(&mut file.tags, &format!("status:{}", change.status));
+        } else {
+            push_unique_tag(&mut file.tags, "state:clean");
+        }
+    }
+}
+
+fn push_unique_tag(tags: &mut Vec<String>, tag: &str) {
+    if !tags.iter().any(|item| item == tag) {
+        tags.push(tag.to_string());
+    }
+}
+
 fn area_names(path: &str) -> Vec<String> {
     let mut names = Vec::new();
     if let Some(top_level) = path.split('/').next().filter(|part| !part.is_empty()) {
@@ -328,4 +415,71 @@ fn package_area(path: &str) -> Option<String> {
 
 fn normalize_relative(path: &Path) -> PathBuf {
     path.to_path_buf()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::path::{Path, PathBuf};
+
+    use crate::model::{CodeMap, FileEntry, SymbolEntry};
+
+    use super::{merge_map, status_path};
+
+    #[test]
+    fn parses_git_status_path_and_rename_target() {
+        assert_eq!(
+            status_path(" M src/lib.rs"),
+            Some(PathBuf::from("src/lib.rs"))
+        );
+        assert_eq!(
+            status_path("R  old.rs -> src/new.rs"),
+            Some(PathBuf::from("src/new.rs"))
+        );
+    }
+
+    #[test]
+    fn incremental_merge_drops_deleted_file_symbols() {
+        let old_map = CodeMap {
+            root_name: "amigo".to_string(),
+            files: vec![file("f1", "src/keep.rs"), file("f2", "src/delete.rs")],
+            symbols: vec![symbol("Keep", "f1"), symbol("Delete", "f2")],
+            ..CodeMap::default()
+        };
+        let current_files = vec![file("f1", "src/keep.rs")];
+        let touched_paths = BTreeSet::from([PathBuf::from("src/delete.rs")]);
+
+        let merged = merge_map(
+            Path::new("."),
+            &old_map,
+            &current_files,
+            &CodeMap::default(),
+            &touched_paths,
+        );
+
+        assert_eq!(merged.files.len(), 1);
+        assert_eq!(merged.symbols.len(), 1);
+        assert_eq!(merged.symbols[0].name, "Keep");
+    }
+
+    fn file(id: &str, path: &str) -> FileEntry {
+        FileEntry {
+            id: id.to_string(),
+            path: PathBuf::from(path),
+            language: "rs".to_string(),
+            tags: vec!["state:clean".to_string()],
+            ..FileEntry::default()
+        }
+    }
+
+    fn symbol(name: &str, file_id: &str) -> SymbolEntry {
+        SymbolEntry {
+            name: name.to_string(),
+            file_id: file_id.to_string(),
+            line: 1,
+            line_end: 1,
+            line_count: 1,
+            ..SymbolEntry::default()
+        }
+    }
 }

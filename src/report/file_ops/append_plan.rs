@@ -145,7 +145,7 @@ fn detect_anchors(map: &CodeMap, file: &FileEntry, text: &str, task: &str) -> Ve
     anchors.push(AppendAnchor {
         line: line_count,
         label: "before file end".to_string(),
-        detail: "fallback append point when no better structural anchor exists".to_string(),
+        detail: "append at file end when no better structural anchor exists".to_string(),
     });
 
     anchors.sort_by_key(|anchor| (anchor.line, anchor.label.clone()));
@@ -223,7 +223,7 @@ fn before_default_case(text: &str) -> Option<AppendAnchor> {
             .then_some(AppendAnchor {
                 line: index + 1,
                 label: "before switch default case".to_string(),
-                detail: "append new route/branch before the fallback".to_string(),
+                detail: "append new route/branch before the default branch".to_string(),
             })
     })
 }

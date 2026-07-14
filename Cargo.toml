@@ -9,6 +9,7 @@ default-run = "amigo-codemap"
 
 [dependencies]
 anyhow = "1"
+flate2 = "1"
 notify.workspace = true
 regex = "1"
 serde.workspace = true

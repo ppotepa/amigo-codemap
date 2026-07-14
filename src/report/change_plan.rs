@@ -1,10 +1,12 @@
+use std::path::Path;
+
 use anyhow::{Result, bail};
 
 use crate::model::CodeMap;
 use crate::query::descriptive_tokens;
-use crate::report::anchors::{anchor_entry_matches, build_anchor_index};
+use crate::report::anchors::{anchor_entry_matches, cached_anchor_index};
 
-pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()> {
+pub fn print_change_plan(root: &Path, map: &CodeMap, query: &str, limit: usize) -> Result<()> {
     if query.trim().is_empty() {
         bail!("change-plan requires a query");
     }
@@ -29,7 +31,7 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     println!("4. Symbole:");
     print_symbols(map, query, &tokens, limit);
     println!("5. Anchor scope:");
-    print_anchor_scope(map, query, &tokens, limit);
+    print_anchor_scope(root, map, query, &tokens, limit);
     println!("6. Text/config:");
     print_text(map, query, &tokens, limit);
     println!("7. Instrukcje per plik:");
@@ -47,28 +49,35 @@ pub fn print_change_plan(map: &CodeMap, query: &str, limit: usize) -> Result<()>
     Ok(())
 }
 
-fn print_anchor_scope(map: &CodeMap, query: &str, tokens: &[String], limit: usize) {
-    let index = build_anchor_index(map, None);
+fn print_anchor_scope(root: &Path, map: &CodeMap, query: &str, tokens: &[String], limit: usize) {
+    let index = cached_anchor_index(root, map, None);
+    let path_tokens = path_tokens(tokens);
     let mut emitted = 0usize;
     for anchor in &index.anchors {
-        if anchor_entry_matches(anchor, query)
-            || tokens
+        let matched_query = anchor_entry_matches(anchor, query);
+        let matched_token = path_tokens
+            .iter()
+            .any(|token| anchor_entry_matches(anchor, token));
+        if !matched_query && !matched_token {
+            continue;
+        }
+        if matched_token
+            && !matched_query
+            && anchor.role == "file"
+            && !path_tokens
                 .iter()
-                .any(|token| anchor_entry_matches(anchor, token))
+                .any(|token| anchor.file.to_ascii_lowercase().contains(token))
         {
-            println!(
-                "  {} {} domain={} role={} file={}:{}",
-                anchor.priority,
-                anchor.anchor,
-                anchor.domain,
-                anchor.role,
-                anchor.file,
-                anchor.line
-            );
-            emitted += 1;
-            if emitted >= limit {
-                break;
-            }
+            continue;
+        }
+
+        println!(
+            "  {} {} domain={} role={} file={}:{}",
+            anchor.priority, anchor.anchor, anchor.domain, anchor.role, anchor.file, anchor.line
+        );
+        emitted += 1;
+        if emitted >= limit {
+            break;
         }
     }
     if emitted == 0 {
@@ -78,22 +87,70 @@ fn print_anchor_scope(map: &CodeMap, query: &str, tokens: &[String], limit: usiz
 
 fn print_scope(map: &CodeMap, query: &str, tokens: &[String], limit: usize) {
     let query = query.to_ascii_lowercase();
-    let mut emitted = 0usize;
+    let path_tokens = path_tokens(tokens);
+    let mut ranked = Vec::new();
     for file in &map.files {
         let path = file.path.to_string_lossy().replace('\\', "/");
         let tag_text = file.tags.join(",");
         let haystack = format!("{} {}", path, tag_text).to_ascii_lowercase();
-        if haystack.contains(&query) || tokens.iter().any(|token| haystack.contains(token)) {
-            println!("  {path} tags={tag_text}");
-            emitted += 1;
-            if emitted >= limit {
-                break;
+        let mut score = 0i32;
+        if haystack.contains(&query) {
+            score += 120;
+        }
+        for token in &path_tokens {
+            if haystack.contains(token) {
+                score += 25;
             }
         }
+        if path_tokens.iter().any(|token| token == "amigo")
+            && path_tokens.iter().any(|token| token == "codemap")
+            && haystack.starts_with("crates/tools/amigo-codemap/")
+        {
+            score += 420;
+        }
+        for term in query.split_whitespace() {
+            let term = term.replace('\\', "/");
+            if term.len() >= 4 && term.contains('-') && haystack.contains(&term) {
+                score += 140;
+            }
+        }
+        if score > 0 {
+            ranked.push((score, path, tag_text));
+        }
     }
-    if emitted == 0 {
+
+    ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    for (_, path, tag_text) in ranked.iter().take(limit) {
+        println!("  {path} tags={tag_text}");
+    }
+    if ranked.is_empty() {
         println!("  none");
     }
+}
+
+fn path_tokens(tokens: &[String]) -> Vec<String> {
+    tokens
+        .iter()
+        .filter(|token| {
+            token.len() >= 3
+                && !matches!(
+                    token.as_str(),
+                    "the"
+                        | "and"
+                        | "for"
+                        | "with"
+                        | "from"
+                        | "source"
+                        | "policy"
+                        | "performance"
+                        | "optimize"
+                        | "text"
+                        | "refs"
+                        | "set"
+                )
+        })
+        .cloned()
+        .collect()
 }
 
 fn print_symbols(map: &CodeMap, query: &str, tokens: &[String], limit: usize) {

@@ -116,7 +116,12 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 .query
                 .as_deref()
                 .ok_or_else(|| anyhow::anyhow!("change-plan requires a query"))?;
-            report::change_plan::print_change_plan(&map, query, cli.options.limit)?;
+            report::change_plan::print_change_plan(
+                &cli.options.root,
+                &map,
+                query,
+                cli.options.limit,
+            )?;
         }
         Command::ExplainFile => {
             let map = load_report_map(&cli.options)?;
@@ -263,6 +268,10 @@ pub(super) fn run(cli: Cli) -> Result<()> {
                 &cli.options.expect_absent,
             );
             print!("{}", report::verify_plan::render_verify_plan(&plan));
+        }
+        Command::ArchGuard => {
+            let map = load_report_map(&cli.options)?;
+            report::arch_guard::run(&cli.options.root, &map)?;
         }
         Command::VerifyScope => {
             let map = load_report_map(&cli.options)?;

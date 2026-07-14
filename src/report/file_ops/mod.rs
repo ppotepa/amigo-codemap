@@ -6,6 +6,7 @@ pub mod case_check;
 pub mod commit_files;
 pub mod common;
 pub mod copy_plan;
+pub mod coverage;
 pub mod delete_plan;
 pub mod diff;
 pub mod diff_scope;

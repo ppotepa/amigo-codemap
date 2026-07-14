@@ -9,7 +9,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Result, anyhow, bail};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::cli::Options;
+use crate::cli::{Options, StalePolicy};
 use crate::daemon_protocol::{
     DEFAULT_DAEMON_ADDR, DaemonMapOptions, DaemonRequest, DaemonResponse, DaemonStatus,
 };
@@ -152,7 +152,7 @@ fn run_daemon(
     let root = root.canonicalize().unwrap_or(root);
     let out = out.unwrap_or_else(|| root.join(".amigo").join("codemap.json"));
 
-    let options = make_options(&root, &out, level, pretty, ai);
+    let options = make_options(&root, &out, level, pretty, ai, StalePolicy::Refresh);
     let index = incremental::WorkspaceIndex::from_full_scan(&options)?;
     incremental::write_outputs(&options, &index.map)?;
 
@@ -263,12 +263,20 @@ fn ensure_fresh_map(
             .lock()
             .map_err(|_| anyhow!("daemon state lock poisoned"))?;
         ensure_same_root(&state.root, &options.root)?;
+        let compatible_options = state.level == options.level && state.ai == options.ai;
         if dirty_paths
             .lock()
             .map_err(|_| anyhow!("daemon dirty lock poisoned"))?
             .is_empty()
-            && state.level == options.level
-            && state.ai == options.ai
+            && compatible_options
+        {
+            return Ok(false);
+        }
+        if compatible_options
+            && matches!(
+                stale_policy_from_daemon_options(options)?,
+                StalePolicy::Warn | StalePolicy::Ignore
+            )
         {
             return Ok(false);
         }
@@ -294,7 +302,14 @@ fn refresh_map(
         ensure_same_root(&state.root, &root.to_string_lossy())?;
     }
 
-    let scan_options = make_options(&root, &out, options.level, options.pretty, options.ai);
+    let scan_options = make_options(
+        &root,
+        &out,
+        options.level,
+        options.pretty,
+        options.ai,
+        stale_policy_from_daemon_options(options)?,
+    );
     let started = Instant::now();
     let mut index = {
         let state = state
@@ -443,7 +458,14 @@ fn ensure_same_root(expected: &Path, received: &str) -> Result<()> {
     Ok(())
 }
 
-fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> Options {
+fn make_options(
+    root: &Path,
+    out: &Path,
+    level: u8,
+    pretty: bool,
+    ai: bool,
+    stale_policy: StalePolicy,
+) -> Options {
     Options {
         root: root.to_path_buf(),
         out: out.to_path_buf(),
@@ -503,6 +525,7 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         no_verbose: false,
         quiet: false,
         no_cache: false,
+        stale_policy,
         compact: false,
         hide_generated: false,
         include_tests: false,
@@ -511,6 +534,15 @@ fn make_options(root: &Path, out: &Path, level: u8, pretty: bool, ai: bool) -> O
         expect_present: Vec::new(),
         expect_absent: Vec::new(),
         daemon_mode: crate::cli::DaemonMode::Auto,
+    }
+}
+
+fn stale_policy_from_daemon_options(options: &DaemonMapOptions) -> Result<StalePolicy> {
+    match options.stale_policy.as_str() {
+        "refresh" => Ok(StalePolicy::Refresh),
+        "warn" => Ok(StalePolicy::Warn),
+        "ignore" => Ok(StalePolicy::Ignore),
+        other => bail!("unknown daemon stale_policy `{other}`; expected refresh, warn, or ignore"),
     }
 }
 
